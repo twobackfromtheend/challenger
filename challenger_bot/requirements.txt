@@ -1,0 +1,5 @@
+pygame
+pandas
+scipy
+numpy
+gym

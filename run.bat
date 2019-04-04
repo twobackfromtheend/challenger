@@ -4,7 +4,7 @@
 cd /D "%~dp0"
 
 @rem Make sure the environment variables are up-to-date. This is useful if the user installed python a moment ago.
-call ./RefreshEnv.cmd
+@rem call ./RefreshEnv.cmd
 
 python run.py
 
