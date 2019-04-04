@@ -1,14 +1,18 @@
+from typing import TYPE_CHECKING
+
 import numpy as np
-from tensorflow.python.keras import backend as K
-from tensorflow.python.keras.layers import Dense, Activation, Flatten, Input, Concatenate
-from tensorflow.python.keras.models import Model
-from tensorflow.python.keras.optimizers import Adam, Optimizer
 
-from challenger_bot.reinforcement_learning.model.base_model import BaseNNModel
+from challenger_bot.reinforcement_learning.model.base_actor_model import BaseActorModel
+
+if TYPE_CHECKING:
+    from tensorflow.python.keras.models import Model
+    from tensorflow.python.keras.optimizers import Optimizer
 
 
-class BaseCriticModel(BaseNNModel):
+class BaseCriticModel(BaseActorModel):
     def __init__(self, inputs: int, outputs: int, load_from_filepath: str = None, **kwargs):
+        from tensorflow.python.keras.layers import Input
+
         self.action_input: Input = None
 
         super().__init__(inputs, outputs, load_from_filepath, **kwargs)
@@ -16,7 +20,11 @@ class BaseCriticModel(BaseNNModel):
         # After build_model is called and self.model is set.
         self.action_input_index = self.model.input.index(self.action_input)
 
-    def build_model(self) -> Model:
+    def build_model(self) -> 'Model':
+        from tensorflow.python.keras.layers import Dense, Activation
+        from tensorflow.python.keras.models import Model
+        from tensorflow.python.keras.optimizers import Adam
+
         inputs, x = self._get_input_layers()
 
         x = Dense(32)(x)
@@ -28,11 +36,13 @@ class BaseCriticModel(BaseNNModel):
 
         model = Model(inputs=inputs, outputs=x)
 
-        model.compile(optimizer=Adam(lr=1e-3), loss='mse')
+        model.compile(optimizer=Adam(lr=1e-4), loss='mse')
         # print(model.summary())
         return model
 
     def _get_input_layers(self):
+        from tensorflow.python.keras.layers import Flatten, Input, Concatenate
+
         self.action_input = Input(shape=(self.outputs,), name='action_input')
         self.observation_input = Input(shape=(self.inputs,), name='observation_input')
         inputs = [self.action_input, self.observation_input]
@@ -45,7 +55,9 @@ class BaseCriticModel(BaseNNModel):
         input_.insert(self.action_input_index, actions)
         return input_
 
-    def get_actor_train_fn(self, actor_model: BaseNNModel, actor_optimizer: Optimizer):
+    def get_actor_train_fn(self, actor_model: BaseActorModel, actor_optimizer: 'Optimizer'):
+        from tensorflow.python.keras import backend as K
+
         combined_inputs = []
         state_inputs = []
         for _input in self.model.input:

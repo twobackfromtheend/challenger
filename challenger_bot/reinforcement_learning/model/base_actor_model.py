@@ -1,26 +1,30 @@
 import time
-from typing import Union, Callable
+from typing import Union, Callable, TYPE_CHECKING
 
 import numpy as np
-import tensorflow as tf
-from tensorflow.python.keras import Sequential, Model, backend as K
-from tensorflow.python.keras.models import save_model, load_model
+
+if TYPE_CHECKING:
+    from tensorflow.python.keras import Sequential, Model
 
 
-class BaseNNModel:
+class BaseActorModel:
     def __init__(self, inputs: int, outputs: int, load_from_filepath: str = None, **kwargs):
         self.inputs = inputs
         self.outputs = outputs
         self.load_from_filepath = load_from_filepath  # Needed for copying with __dict__.
         if load_from_filepath is not None:
+            from tensorflow.python.keras.models import load_model
+
             self.model = load_model(load_from_filepath)
         else:
             self.model = self.build_model()
 
-    def build_model(self) -> Union[Sequential, Model]:
+    def build_model(self) -> Union['Sequential', 'Model']:
         raise NotImplementedError
 
     def save_model(self, name: str, use_timestamp: bool = True):
+        from tensorflow.python.keras.models import save_model
+
         filename = f"model_{name}"
         if use_timestamp:
             filename += f"{time.strftime('%Y%m%d-%H%M%S')}"
@@ -43,6 +47,8 @@ class BaseNNModel:
 
     @staticmethod
     def get_huber_loss(clip_delta: float = 200) -> Callable:
+        import tensorflow as tf
+
         def loss_fn(y_true, y_pred, clip_delta=clip_delta):
             error = y_true - y_pred
             cond = tf.keras.backend.abs(error) < clip_delta
@@ -55,6 +61,7 @@ class BaseNNModel:
         return loss_fn
 
     def set_learning_rate(self, learning_rate: float):
+        from tensorflow.python.keras import backend as K
         K.set_value(self.model.optimizer.lr, learning_rate)
 
     def predict(self, x: np.ndarray):

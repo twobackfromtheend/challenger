@@ -1,17 +1,19 @@
-import numpy as np
-from tensorflow.python.keras.optimizers import Adam
+from typing import Union
 
+import numpy as np
+
+from challenger_bot.reinforcement_learning.exploration.ornstein_uhlenbeck import OrnsteinUhlenbeck
+from challenger_bot.reinforcement_learning.model.base_actor_model import BaseActorModel
 from challenger_bot.reinforcement_learning.model.base_critic_model import BaseCriticModel
-from challenger_bot.reinforcement_learning.model.base_model import BaseNNModel
 from challenger_bot.reinforcement_learning.replay.experience import InsufficientExperiencesError
 from challenger_bot.reinforcement_learning.replay.replay_handler import ExperienceReplayHandler
 
 
 class DDPGAgent:
     def __init__(self,
-                 actor_model: BaseNNModel,
+                 actor_model: BaseActorModel,
                  critic_model: BaseCriticModel,
-                 exploration,
+                 exploration: OrnsteinUhlenbeck,
                  ):
         self.actor_model = actor_model
         self.critic_model = critic_model
@@ -26,12 +28,14 @@ class DDPGAgent:
         self.last_action: np.ndarray = np.zeros(actor_model.outputs)
 
         self.discount_rate = 0.95
-
+        from tensorflow.python.keras.optimizers import Adam
         self.actor_train_fn = self.critic_model.get_actor_train_fn(self.actor_model, Adam(1e-3))
 
-    def train_with_get_output(self, state: np.ndarray, reward: float, done: bool):
-        action = self.get_action(state)
+    def reset_last_state_and_action(self):
+        self.last_state = np.zeros(actor_model.inputs)
+        self.last_action = np.zeros(actor_model.outputs)
 
+    def train_with_get_output(self, state: np.ndarray, reward: float, done: bool) -> Union[np.ndarray, None]:
         self.replay_handler.record_experience(self.last_state, self.last_action, reward, state, done)
 
         self.update_target_models(True, 0.01)
@@ -41,9 +45,14 @@ class DDPGAgent:
         except InsufficientExperiencesError:
             pass
 
-        self.last_state = state
-        self.last_action = action
-        return action
+        if not done:
+            action = self.get_action(state)
+            self.last_state = state
+            self.last_action = action
+            return action
+        else:
+            self.reset_last_state_and_action()
+            self.exploration.reset_states()
 
     def get_action(self, state: np.ndarray):
         action = self.actor_model.predict(state.reshape((1, -1))).flatten()
@@ -135,7 +144,6 @@ class DDPGAgent:
 
 if __name__ == '__main__':
     import gym
-    from challenger_bot.reinforcement_learning.exploration.ornstein_uhlenbeck import OrnsteinUhlenbeck
 
     gym.envs.register(
         id='PendulumTimeSensitive-v0',
@@ -152,7 +160,6 @@ if __name__ == '__main__':
     agent = DDPGAgent(
         actor_model, critic_model=critic_model,
         exploration=OrnsteinUhlenbeck(theta=0.15, sigma=0.3),
-
     )
 
     # Emulate get_output
@@ -164,7 +171,7 @@ if __name__ == '__main__':
         done = False
         while True:
             if done:
-                agent.train_with_get_output(state, reward=reward, done=False)
+                agent.train_with_get_output(state, reward=reward, done=True)
                 break
             action = agent.train_with_get_output(state, reward=reward, done=False)
             state, reward, done, info = env.step(action)

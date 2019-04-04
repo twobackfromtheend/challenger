@@ -3,7 +3,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
-from rlbot.messages.flat import RigidBodyTick
+from rlbot.utils.structures.rigid_body_struct import RigidBodyTick
 
 
 class GhostHandler:

@@ -16,9 +16,14 @@ class ExperienceReplayHandler:
         self.size = size
         self.batch_size = batch_size
         self.memory: Deque[Experience] = deque(maxlen=size)
+        self.reached_max_size = False
 
-    def record_experience(self, state: np.ndarray, action: np.ndarray, reward: float, next_state: np.ndarray, done: bool):
+    def record_experience(self, state: np.ndarray, action: np.ndarray, reward: float, next_state: np.ndarray,
+                          done: bool):
         self.memory.append(Experience(state, action, reward, next_state, done))
+        if not self.reached_max_size and len(self.memory) == self.size:
+            self.reached_max_size = True
+            print("Reached max replay memory size.")
 
     def sample(self):
         if self.batch_size > len(self.memory):
