@@ -41,7 +41,9 @@ class DDPGAgent:
         self.update_target_models(True, 0.01)
 
         try:
-            self.experience_replay()
+            critic_loss = self.experience_replay()
+            # from quicktracer import trace
+            # trace(float(critic_loss))
         except InsufficientExperiencesError:
             pass
 

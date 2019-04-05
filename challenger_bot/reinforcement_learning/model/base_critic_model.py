@@ -27,16 +27,16 @@ class BaseCriticModel(BaseActorModel):
 
         inputs, x = self._get_input_layers()
 
-        x = Dense(32)(x)
+        x = Dense(64)(x)
         x = Activation('relu')(x)
-        x = Dense(32)(x)
+        x = Dense(64)(x)
         x = Activation('relu')(x)
 
         x = Dense(1, activation='linear')(x)
 
         model = Model(inputs=inputs, outputs=x)
 
-        model.compile(optimizer=Adam(lr=1e-4), loss='mse')
+        model.compile(optimizer=Adam(lr=1e-3), loss='mse')
         # print(model.summary())
         return model
 
