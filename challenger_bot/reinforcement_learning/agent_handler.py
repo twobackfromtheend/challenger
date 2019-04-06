@@ -170,7 +170,7 @@ class AgentHandler(BaseAgentHandler):
             critic_model = BaseCriticModel(inputs=INPUTS, outputs=OUTPUTS)
             agent = DDPGAgent(
                 actor_model, critic_model=critic_model,
-                exploration=OrnsteinUhlenbeck(theta=0.15, sigma=0.3),
+                exploration=OrnsteinUhlenbeck(theta=0.15, sigma=0.05),
             )
             print("Created agent")
             return agent
