@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Optional
 
 import numpy as np
 
@@ -32,10 +32,11 @@ class DDPGAgent:
         self.actor_train_fn = self.critic_model.get_actor_train_fn(self.actor_model, Adam(1e-3))
 
     def reset_last_state_and_action(self):
-        self.last_state = np.zeros(actor_model.inputs)
-        self.last_action = np.zeros(actor_model.outputs)
+        self.last_state = np.zeros(self.actor_model.inputs)
+        self.last_action = np.zeros(self.actor_model.outputs)
 
-    def train_with_get_output(self, state: np.ndarray, reward: float, done: bool) -> Union[np.ndarray, None]:
+    def train_with_get_output(self, state: np.ndarray, reward: float, done: bool,
+                              enforced_action: Optional[np.ndarray] = None) -> Union[np.ndarray, None]:
         self.replay_handler.record_experience(self.last_state, self.last_action, reward, state, done)
 
         self.update_target_models(True, 0.01)
@@ -48,7 +49,10 @@ class DDPGAgent:
             pass
 
         if not done:
-            action = self.get_action(state)
+            if enforced_action is None:
+                action = self.get_action(state)
+            else:
+                action = self.exploration.get_action(enforced_action)
             self.last_state = state
             self.last_action = action
             return action
@@ -144,41 +148,3 @@ class DDPGAgent:
             self.target_critic_model.model.set_weights(self.critic_model.model.get_weights())
 
 
-if __name__ == '__main__':
-    import gym
-
-    gym.envs.register(
-        id='PendulumTimeSensitive-v0',
-        entry_point='gym.envs.classic_control:PendulumEnv',
-        max_episode_steps=200
-    )
-    env = gym.make('PendulumTimeSensitive-v0')
-
-    from challenger_bot.reinforcement_learning.model.dense_model import DenseModel
-
-    actor_model = DenseModel(inputs=3, outputs=1, layer_nodes=(48, 48), learning_rate=3e-3,
-                             inner_activation='relu', output_activation='tanh')
-    critic_model = BaseCriticModel(inputs=3, outputs=1)
-    agent = DDPGAgent(
-        actor_model, critic_model=critic_model,
-        exploration=OrnsteinUhlenbeck(theta=0.15, sigma=0.3),
-    )
-
-    # Emulate get_output
-    episode_count = 0
-    while True:
-        state = env.reset()
-        total_reward = 0
-        reward = 0
-        done = False
-        while True:
-            if done:
-                agent.train_with_get_output(state, reward=reward, done=True)
-                break
-            action = agent.train_with_get_output(state, reward=reward, done=False)
-            state, reward, done, info = env.step(action)
-            total_reward += reward
-            env.render()
-
-        print(f"Episode: {episode_count}: reward: {total_reward}")
-        episode_count += 1

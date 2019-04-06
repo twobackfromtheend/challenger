@@ -1,6 +1,7 @@
+import random
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple, Callable
 
 import numpy as np
 from rlbot.agents.base_agent import SimpleControllerState
@@ -15,31 +16,35 @@ from challenger_bot.reinforcement_learning.model.base_critic_model import BaseCr
 from challenger_bot.reinforcement_learning.model.dense_model import DenseModel
 
 if TYPE_CHECKING:
-    from challenger_bot.challenger import Challenger
-
+    from challenger_bot.ghosts.ghost import GhostHandler
+    from rlbot.utils.rendering.rendering_manager import RenderingManager
 
 WAIT_TIME_BEFORE_HIT = 1
 trained_models_folder = Path(__file__).parent / "trained_models"
 
 
 class AgentHandler(BaseAgentHandler):
-    def __init__(self, challenger: 'Challenger'):
+    def __init__(self, ghost_handler: 'GhostHandler', renderer: 'RenderingManager'):
+        super().__init__(ghost_handler, renderer)
+
         self.trained_actor_filepath: Optional[Path] = None
         self.trained_critic_filepath: Optional[Path] = None
 
-        self.challenger = challenger
         self.current_agent: Optional[DDPGAgent] = None
 
         self.total_rewards = []
+        self.episode = 0
+
+        self.ghost_override: bool = False
 
         self.previous_game_state: Optional[GameState] = None
         self.current_shot_spawn_time: Optional[float] = None
         self.current_shot_total_reward = 0
         self.current_shot_start_time: Optional[float] = None
 
-    def get_agent(self, round: int):
-        trained_actor_filepath = trained_models_folder / f"{round}_actor.h5"
-        trained_critic_filepath = trained_models_folder / f"{round}_critic.h5"
+    def get_agent(self, round_: int):
+        trained_actor_filepath = trained_models_folder / f"{round_}_actor.h5"
+        trained_critic_filepath = trained_models_folder / f"{round_}_critic.h5"
         if trained_actor_filepath.is_file() and trained_critic_filepath.is_file():
             self.current_agent = self.create_agent((trained_actor_filepath, trained_critic_filepath))
         else:
@@ -48,7 +53,8 @@ class AgentHandler(BaseAgentHandler):
     def is_setup(self) -> bool:
         return self.current_agent is not None
 
-    def challenger_tick(self, packet: GameTickPacket, game_state: GameState) -> SimpleControllerState:
+    def challenger_tick(self, packet: GameTickPacket, game_state: GameState,
+                        get_rb_tick: Callable[[], RigidBodyTick]) -> SimpleControllerState:
         if self.current_agent is None:
             raise Exception("Not loaded agent.")
 
@@ -70,7 +76,7 @@ class AgentHandler(BaseAgentHandler):
 
         if train_on_frame:
             # print("train")
-            rb_tick = self.challenger.get_rigid_body_tick()
+            rb_tick = get_rb_tick()
 
             if self.current_shot_start_time is None:
                 self.current_shot_start_time = current_time
@@ -80,13 +86,19 @@ class AgentHandler(BaseAgentHandler):
             reward = self.get_reward(rb_tick, packet, done)
             self.current_shot_total_reward += reward
             if done:
-                self.total_rewards.append(self.current_shot_total_reward)
-                print(f"Completed shot {len(self.total_rewards)}: reward: {self.current_shot_total_reward}")
-                self.current_shot_total_reward = 0
+                self.end_episode_cleanup()
 
-            action = self.current_agent.train_with_get_output(state, reward=reward, done=False)
+            if self.ghost_override:
+                enforced_action = self.get_enforced_action(rb_tick)
+                action = self.current_agent.train_with_get_output(state, reward=reward, done=False,
+                                                                  enforced_action=enforced_action)
+                if not done:
+                    self.render_ghost_override()
+            else:
+                action = self.current_agent.train_with_get_output(state, reward=reward, done=False)
 
             controller_state = self.get_controller_state_from_actions(action)
+            # print(controller_state.__dict__, '2')
         else:
             # controller_state = SimpleControllerState()
             if game_state == GameState.ROUND_WAITING:
@@ -145,7 +157,7 @@ class AgentHandler(BaseAgentHandler):
         reward = 0
 
         # Get distance from ghost
-        ghost_location = self.challenger.ghost_handler.get_location(rb_tick)
+        ghost_location = self.ghost_handler.get_location(rb_tick)
 
         car_location = rb_tick.players[0].state.location
         car_location_array = np.array([car_location.x, car_location.y, car_location.z])
@@ -165,7 +177,7 @@ class AgentHandler(BaseAgentHandler):
             critic_model = BaseCriticModel(inputs=INPUTS, outputs=OUTPUTS)
             agent = DDPGAgent(
                 actor_model, critic_model=critic_model,
-                exploration=OrnsteinUhlenbeck(theta=0.15, sigma=0.3),
+                exploration=OrnsteinUhlenbeck(theta=0.15, sigma=0.05),
             )
             print("Created agent")
             return agent
@@ -183,3 +195,34 @@ class AgentHandler(BaseAgentHandler):
         controller_state.boost = bool(controls[6] >= 0)
         controller_state.handbrake = bool(controls[7] >= 0)
         return controller_state
+
+    @staticmethod
+    def get_actions_from_controller_state(controller_state: SimpleControllerState) -> np.ndarray:
+        return np.array([
+            controller_state.steer,
+            controller_state.throttle,
+            controller_state.pitch,
+            controller_state.yaw,
+            controller_state.roll,
+            controller_state.jump * 2 - 1,
+            controller_state.boost * 2 - 1,
+            controller_state.handbrake * 2 - 1,
+        ])
+
+    def end_episode_cleanup(self):
+        self.total_rewards.append(self.current_shot_total_reward)
+        self.episode += 1
+        print(f"Completed shot {self.episode}: reward: {self.current_shot_total_reward}")
+        self.current_shot_total_reward = 0
+        self.ghost_override = random.random() < 0.1
+        self.ghost_handler.randomise_current_ghost()
+
+    def get_enforced_action(self, rb_tick: RigidBodyTick) -> np.ndarray:
+        ghost_controller_state = self.ghost_handler.get_ghost_controller_state(rb_tick)
+        # print(ghost_controller_state.__dict__, 'ghost')
+        return self.get_actions_from_controller_state(ghost_controller_state)
+
+    def render_ghost_override(self):
+        self.renderer.begin_rendering()
+        self.renderer.draw_string_2d(300, 50, 5, 5, "Ghost override", self.renderer.white())
+        self.renderer.end_rendering()

@@ -1,19 +1,25 @@
+import random
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 import numpy as np
 import pandas as pd
+from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.utils.structures.rigid_body_struct import RigidBodyTick
 
 
 class GhostHandler:
     data_folderpath = Path(__file__).parent / "data"
 
-    def __init__(self):
-        self.ghosts = {}  # round: pd.DataFrame
+    def __init__(self, challenge: str):
+        self.challenge = challenge
+        self.challenge_data_folderpath: Path = self.data_folderpath / challenge
+        self.challenge_data_folderpath.mkdir(exist_ok=True)
+
         self.current_save = []
 
         self.current_ghost: Optional[pd.DataFrame] = None
+        self.current_ghosts: Optional[List[pd.DataFrame]] = []
         self.current_ghost_ball_start_position: Optional[np.ndarray] = None
         self.current_ghost_first_control_frame: Optional[int] = None
         self.replay_ghost_start_frame: Optional[int] = None
@@ -42,35 +48,44 @@ class GhostHandler:
         }
         self.current_save.append(data_dict)
 
-    def save_ghost(self, round: int):
+    def save_ghost(self, round_: int):
         if not self.current_save:
             return
-        print(f"Saving ghost for round: {round}")
-
+        save_location = self.get_save_location(round_)
+        print(f"Saving ghost for round: {round_} ({save_location.relative_to(Path(__file__).parent)})")
         df = pd.DataFrame.from_records(self.current_save, index='ball_frame')
-        df.to_csv(self.data_folderpath / f"{round}.csv")
-        # print(df)
-        # print(df.dtypes)
-        # try:
-        #     df.to_pickle(self.data_folderpath / f"{round}.pkl")
-        # except Exception as e:
-        #     print("Cannot save pickle:", e)
+        df.to_csv(save_location)
         self.current_save = []
 
-    def get_ghost(self, round: int):
-        self.current_ghost = self.load_saved_data(round)
-        if self.current_ghost is not None:
-            print(f"Found ghost for round: {round}")
+    def get_save_location(self, round_: int):
+        round_folder = self.get_round_folder(round_)
+        round_folder.mkdir(exist_ok=True)
+        max_i = 0
+        for file in round_folder.glob("*.csv"):
+            filename = file.name
+            i = int(filename[:filename.index('.')])
+            max_i = max(i + 1, max_i)
+
+        return round_folder / f"{max_i}.csv"
+
+    def get_round_folder(self, round_) -> Path:
+        round_folder: Path = self.challenge_data_folderpath / str(round_)
+        return round_folder
+
+    def get_ghosts(self, round_: int):
+        self.current_ghosts = self.load_saved_ghosts(round_)
+        if self.current_ghosts:
+            print(f"Found ghost for round: {round_}")
+            self.randomise_current_ghost()
             self.current_ghost_ball_start_position = self.current_ghost.loc[0, ['ball_x', 'ball_y', 'ball_z']]
-            self.current_ghost_first_control_frame = self.current_ghost.loc[:, ['boost', 'throttle']].any(axis=1).idxmax()
+            self.current_ghost_first_control_frame = self.current_ghost.loc[:, ['boost', 'throttle']].any(
+                axis=1).idxmax()
 
-    def load_saved_data(self, round: int):
-        # if round in self.ghosts:
-        #     return self.ghosts[round]
-
-        data_path: Path = self.data_folderpath / f"{round}.csv"
-        if data_path.is_file():
-            df = pd.read_csv(data_path, index_col=0)
+    def load_saved_ghosts(self, round_: int):
+        round_folder = self.get_round_folder(round_)
+        ghosts = []
+        for file in round_folder.glob("*.csv"):
+            df = pd.read_csv(file, index_col=0)
 
             # Remove duplicate frames
             # df = df[~df.index.duplicated(keep='first')]
@@ -84,13 +99,18 @@ class GhostHandler:
             df.interpolate('linear', inplace=True)
             df.fillna(method='ffill', inplace=True)  # Interpolate boolean
             if not df.empty:
-                self.ghosts[round] = df
-                return df
-        print(f"Cannot find ghost for round: {round}")
+                ghosts.append(df)
+        if not ghosts:
+            print(f"Cannot find ghosts for round: {round_}")
+        return ghosts
+
+    def randomise_current_ghost(self):
+        self.current_ghost = random.choice(self.current_ghosts)
 
     def get_location(self, rbtick: RigidBodyTick):
-        if self.current_ghost is None:
+        if not self.current_ghosts:
             return [0, 0, 0]
+
         current_frame_delta = self.get_current_frame_delta(rbtick)
         car_position = self.current_ghost.loc[current_frame_delta, ['x', 'y', 'z']]
         return car_position.tolist()
@@ -113,9 +133,22 @@ class GhostHandler:
         current_frame_delta = ball_frame - self.replay_ghost_start_frame
         return min(current_frame_delta + self.current_ghost_first_control_frame, self.current_ghost.index.max())
 
+    def get_ghost_controller_state(self, rb_tick: RigidBodyTick):
+        current_frame_delta = self.get_current_frame_delta(rb_tick)
+        ghost = self.current_ghost
+        controls = ghost.loc[
+            current_frame_delta,
+            ['steer', 'throttle', 'pitch', 'yaw', 'roll', 'boost', 'jump', 'handbrake']
+        ]
+        controls = controls.clip(-1, 1)
+        controller_state = SimpleControllerState()
+        controller_state.steer, controller_state.throttle, \
+            controller_state.pitch, controller_state.yaw, controller_state.roll, \
+            controller_state.boost, controller_state.jump, controller_state.handbrake = controls
+        return controller_state
+
 
 if __name__ == '__main__':
-    ghost_handler = GhostHandler()
-    ghost_handler.get_ghost(15)
-    ghost_handler.get_location(1, None)
-
+    ghost_handler = GhostHandler("7657-2F43-9B3A-C1F1")
+    ghost_handler.get_ghosts(15)
+    ghost_handler.get_location(1)

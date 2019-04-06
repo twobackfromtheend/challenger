@@ -22,9 +22,12 @@ from challenger_bot.training_pack_data import rounds_ball_data
 from challenger_bot.ds4_interfacer.ds4_controller import DS4, DS4Button, DS4Analog
 
 TRAINING_PACK = "7657-2F43-9B3A-C1F1"
+CHALLENGE = TRAINING_PACK
 
 
 class Challenger(BaseAgent):
+    challenge: str = CHALLENGE
+
     ds4: DS4
     controller_state: SimpleControllerState
     waiting_for_shot: bool
@@ -32,7 +35,7 @@ class Challenger(BaseAgent):
     previous_packet: GameTickPacket = None
     current_round: int = None
 
-    ghost_handler = GhostHandler()
+    ghost_handler = GhostHandler(CHALLENGE)
     saving_ghost: bool = False
 
     ds4_enabled: bool = False
@@ -58,7 +61,7 @@ class Challenger(BaseAgent):
         ])
 
         self.controller_state = SimpleControllerState()
-        self.agent_handler = AgentHandler(self)
+        self.agent_handler = AgentHandler(ghost_handler=self.ghost_handler, renderer=self.renderer)
 
         self.waiting_for_shot = True
 
@@ -81,7 +84,7 @@ class Challenger(BaseAgent):
 
         # Get controls based on car_controller
         if self.current_car_controller == CarController.AGENT and self.agent_handler.is_setup():
-            self.controller_state = self.agent_handler.challenger_tick(packet, current_game_state)
+            self.controller_state = self.agent_handler.challenger_tick(packet, current_game_state, self.get_rigid_body_tick)
             # print(self.controller_state.__dict__)
             draw_controller_state = False
         else:
@@ -107,7 +110,7 @@ class Challenger(BaseAgent):
 
     def setup_round(self):
         self.detect_round_number()
-        self.ghost_handler.get_ghost(self.current_round)
+        self.ghost_handler.get_ghosts(self.current_round)
         self.agent_handler.get_agent(self.current_round)
 
     def detect_round_number(self):
@@ -148,15 +151,14 @@ class Challenger(BaseAgent):
         #                         renderer.white())
 
         if self.current_car_controller == CarController.AGENT and isinstance(self.agent_handler, CheeseAgentHandler):
-            renderer.draw_string_2d(200, 600, 10, 10, "CHEESING", renderer.yellow())
+            renderer.draw_string_2d(200, 500, 10, 10, "CHEESING", renderer.yellow())
 
         # Draw ghost
-        if self.ghost_handler.current_ghost is not None:
-            try:
-                ghost_location = self.ghost_handler.get_location(self.get_rigid_body_tick())
-                renderer.draw_rect_3d(ghost_location, 20, 20, True, renderer.white())
-            except:
-                pass
+        try:
+            ghost_location = self.ghost_handler.get_location(self.get_rigid_body_tick())
+            renderer.draw_rect_3d(ghost_location, 20, 20, True, renderer.white())
+        except:
+            pass
         # if game_state == GameState.PAUSED:
         #     renderer.draw_rect_2d(10, 395, 500, 135, True, renderer.create_color(80, 0, 0, 0))
         #     renderer.draw_string_2d(15, 400, 8, 8, f"PAUSED", renderer.red())
