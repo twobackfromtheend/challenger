@@ -55,7 +55,7 @@ class AgentHandler(BaseAgentHandler):
         if self.current_shot_spawn_time is None or \
                 self.previous_game_state != GameState.ROUND_WAITING and game_state == GameState.ROUND_WAITING:
             self.current_shot_spawn_time = time.time()
-
+            # print("spawn")
         current_time = time.time()
         # Only train if ongoing
         train_on_frame = False
@@ -66,8 +66,10 @@ class AgentHandler(BaseAgentHandler):
             train_on_frame = True
             done = True
             self.current_shot_start_time = None
+            # print("bye")
 
         if train_on_frame:
+            # print("train")
             rb_tick = self.challenger.get_rigid_body_tick()
 
             if self.current_shot_start_time is None:
@@ -86,7 +88,13 @@ class AgentHandler(BaseAgentHandler):
 
             controller_state = self.get_controller_state_from_actions(action)
         else:
-            controller_state = SimpleControllerState(throttle=current_time - self.current_shot_spawn_time > WAIT_TIME_BEFORE_HIT)
+            # controller_state = SimpleControllerState()
+            if game_state == GameState.ROUND_WAITING:
+                # if current_time - self.current_shot_spawn_time > WAIT_TIME_BEFORE_HIT:
+                #     print("gogogo")
+                controller_state = SimpleControllerState(throttle=current_time - self.current_shot_spawn_time > WAIT_TIME_BEFORE_HIT)
+            else:
+                controller_state = SimpleControllerState()
 
         self.previous_game_state = game_state
         # return None

@@ -102,6 +102,7 @@ class Challenger(BaseAgent):
         self.previous_packet = copy.copy(packet)
         # print(self.controller_state.__dict__)
         self.draw(game_state=current_game_state, draw_controller_state=draw_controller_state)
+        # print(any(list(self.controller_state.__dict__.values())))
         return self.controller_state
 
     def setup_round(self):
