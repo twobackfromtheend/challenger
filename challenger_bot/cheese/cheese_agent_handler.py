@@ -1,47 +1,34 @@
-from typing import TYPE_CHECKING
+from typing import Callable
 
 from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.messages.flat import GameTickPacket
+from rlbot.utils.rendering.rendering_manager import RenderingManager
+from rlbot.utils.structures.rigid_body_struct import RigidBodyTick
 
 from challenger_bot.base_agent_handler import BaseAgentHandler
 from challenger_bot.game_controller import GameState
-
-if TYPE_CHECKING:
-    from challenger_bot.challenger import Challenger
+from challenger_bot.ghosts.ghost import GhostHandler
 
 
 class CheeseAgentHandler(BaseAgentHandler):
-    def __init__(self, challenger: 'Challenger'):
-        self.challenger = challenger
-        self.ghost_handler = self.challenger.ghost_handler
-
-        self.previous_round_is_active: bool = False
+    def __init__(self, ghost_handler: GhostHandler, renderer: RenderingManager):
+        super().__init__(ghost_handler, renderer)
 
     def get_agent(self, round: int):
         pass
 
-    def challenger_tick(self, packet: GameTickPacket, game_state: GameState) -> SimpleControllerState:
-        round_is_active = packet.game_info.is_round_active
-        if not round_is_active and not self.previous_round_is_active:
+    def challenger_tick(self, packet: GameTickPacket, game_state: GameState,
+                        get_rb_tick: Callable[[], RigidBodyTick]) -> SimpleControllerState:
+        if game_state != GameState.ROUND_ONGOING:
             return SimpleControllerState()
 
-        rb_tick = self.challenger.get_rigid_body_tick()
+        rb_tick = get_rb_tick()
+        controller_state = self.ghost_handler.get_ghost_controller_state(rb_tick)
 
-        current_frame_delta = self.ghost_handler.get_current_frame_delta(rb_tick)
-        ghost = self.ghost_handler.current_ghost
-        controls = ghost.loc[
-            current_frame_delta,
-            ['steer', 'throttle', 'pitch', 'yaw', 'roll', 'boost', 'jump', 'handbrake']
-        ]
-        controls = controls.clip(-1, 1)
-        controller_state = SimpleControllerState()
-        controller_state.steer, controller_state.throttle, \
-            controller_state.pitch, controller_state.yaw, controller_state.roll, \
-            controller_state.boost, controller_state.jump, controller_state.handbrake = controls
-
-        self.previous_round_is_active = round_is_active
         # return None
         return controller_state
+
+
 
     def is_setup(self):
         return self.ghost_handler.current_ghost is not None
