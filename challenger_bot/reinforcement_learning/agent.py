@@ -1,3 +1,4 @@
+import random
 from typing import Union, Optional
 
 import numpy as np
@@ -22,22 +23,24 @@ class DDPGAgent:
         self.target_critic_model = critic_model.create_copy()
 
         self.exploration = exploration
-        self.replay_handler = ExperienceReplayHandler()
+        self.replay_handler = ExperienceReplayHandler(size=1000000, batch_size=512)
 
         self.last_state: np.ndarray = np.zeros(actor_model.inputs)
         self.last_action: np.ndarray = np.zeros(actor_model.outputs)
 
         self.discount_rate = 0.95
         from tensorflow.python.keras.optimizers import Adam
-        self.actor_train_fn = self.critic_model.get_actor_train_fn(self.actor_model, Adam(1e-3))
+        self.actor_train_fn = self.critic_model.get_actor_train_fn(self.actor_model, Adam(1e-4))
 
     def reset_last_state_and_action(self):
         self.last_state = np.zeros(self.actor_model.inputs)
         self.last_action = np.zeros(self.actor_model.outputs)
 
     def train_with_get_output(self, state: np.ndarray, reward: float, done: bool,
-                              enforced_action: Optional[np.ndarray] = None) -> Union[np.ndarray, None]:
-        self.replay_handler.record_experience(self.last_state, self.last_action, reward, state, done)
+                              enforced_action: Optional[np.ndarray] = None,
+                              evaluation: bool = False) -> Union[np.ndarray, None]:
+        if done or random.random() < 0.4:
+            self.replay_handler.record_experience(self.last_state, self.last_action, reward, state, done)
 
         self.update_target_models(True, 0.01)
 
@@ -49,10 +52,13 @@ class DDPGAgent:
             pass
 
         if not done:
-            if enforced_action is None:
-                action = self.get_action(state)
+            if evaluation:
+                action = self.get_action(state, True)
+            elif enforced_action is None:
+                action = self.get_action(state, False)
             else:
-                action = self.exploration.get_action(enforced_action)
+                # action = self.exploration.get_action(enforced_action)
+                action = enforced_action
             self.last_state = state
             self.last_action = action
             return action
@@ -60,8 +66,11 @@ class DDPGAgent:
             self.reset_last_state_and_action()
             self.exploration.reset_states()
 
-    def get_action(self, state: np.ndarray):
+    def get_action(self, state: np.ndarray, evaluation: bool):
         action = self.actor_model.predict(state.reshape((1, -1))).flatten()
+        if evaluation:
+            return action
+
         return self.exploration.get_action(action)
 
     def experience_replay(self):
@@ -146,5 +155,3 @@ class DDPGAgent:
         else:
             self.target_actor_model.model.set_weights(self.actor_model.model.get_weights())
             self.target_critic_model.model.set_weights(self.critic_model.model.get_weights())
-
-

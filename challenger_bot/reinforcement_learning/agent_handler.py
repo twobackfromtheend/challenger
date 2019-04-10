@@ -32,15 +32,27 @@ class AgentHandler(BaseAgentHandler):
 
         self.current_agent: Optional[DDPGAgent] = None
 
-        self.total_rewards = []
+        self.training_rewards = []
         self.episode = 0
+        self.evaluation_rewards = []
+        self.evaluations: int = 0
+
+        self.goals = 0
+        self.ghost_goals = 0
+        self.evaluation_goals: int = 0
 
         self.ghost_override: bool = False
+        self.evaluation: bool = False
 
         self.previous_game_state: Optional[GameState] = None
         self.current_shot_spawn_time: Optional[float] = None
         self.current_shot_total_reward = 0
         self.current_shot_start_time: Optional[float] = None
+
+        self.has_touched = False
+        self.latest_touch_time = 0
+        self.last_controller_state = None
+        self.just_jumped = False
 
     def get_agent(self, round_: int):
         trained_actor_filepath = trained_models_folder / f"{round_}_actor.h5"
@@ -88,25 +100,33 @@ class AgentHandler(BaseAgentHandler):
             if done:
                 self.end_episode_cleanup()
 
-            if self.ghost_override:
+            if self.evaluation:
+                action = self.current_agent.train_with_get_output(state, reward=reward, done=False, evaluation=True)
+            elif self.ghost_override:
                 enforced_action = self.get_enforced_action(rb_tick)
                 action = self.current_agent.train_with_get_output(state, reward=reward, done=False,
                                                                   enforced_action=enforced_action)
-                if not done:
-                    self.render_ghost_override()
             else:
                 action = self.current_agent.train_with_get_output(state, reward=reward, done=False)
 
             controller_state = self.get_controller_state_from_actions(action)
+            if self.last_controller_state is not None and not self.last_controller_state.jump and controller_state.jump:
+                self.just_jumped = True
+            else:
+                self.just_jumped = False
+            self.last_controller_state = controller_state
             # print(controller_state.__dict__, '2')
         else:
             # controller_state = SimpleControllerState()
             if game_state == GameState.ROUND_WAITING:
                 # if current_time - self.current_shot_spawn_time > WAIT_TIME_BEFORE_HIT:
                 #     print("gogogo")
-                controller_state = SimpleControllerState(throttle=current_time - self.current_shot_spawn_time > WAIT_TIME_BEFORE_HIT)
+                controller_state = SimpleControllerState(
+                    throttle=current_time - self.current_shot_spawn_time > WAIT_TIME_BEFORE_HIT)
             else:
                 controller_state = SimpleControllerState()
+
+        self.draw(game_state)
 
         self.previous_game_state = game_state
         # return None
@@ -145,16 +165,40 @@ class AgentHandler(BaseAgentHandler):
         return array
 
     def get_reward(self, rb_tick: RigidBodyTick, packet: GameTickPacket, done: bool) -> float:
+        touched_this_frame = False
+        latest_touch = packet.game_ball.latest_touch
+        if latest_touch.time_seconds != self.latest_touch_time:
+            self.latest_touch_time = latest_touch.time_seconds
+            touched_this_frame = True
         if done:
             DONE_WEIGHT = 50
             ball_location = rb_tick.ball.state.location
             # print(ball_location)
             # Check if scored
-            if 4990 < ball_location.y < 5050 and abs(ball_location.x) < 670 and ball_location.z < 450:
+            if 4990 < ball_location.y < 5050 and abs(ball_location.x) < 900 and ball_location.z < 650:
+                if self.evaluation:
+                    self.evaluation_goals += 1
+                else:
+                    self.goals += 1
+                    if self.ghost_override:
+                        self.ghost_goals += 1
                 return DONE_WEIGHT
             else:
                 return -DONE_WEIGHT
+
         reward = 0
+
+        # Punishment for boosting / jumping
+        if self.last_controller_state is not None:
+            if self.last_controller_state.boost:
+                reward -= 0.04
+            if self.just_jumped:
+                reward -= 5
+
+        # Reward for first touch
+        if touched_this_frame and not self.has_touched:
+            reward += 20
+            self.has_touched = True
 
         # Get distance from ghost
         ghost_location = self.ghost_handler.get_location(rb_tick)
@@ -172,12 +216,12 @@ class AgentHandler(BaseAgentHandler):
         if trained_model_filepaths:
             pass
         else:
-            actor_model = DenseModel(inputs=INPUTS, outputs=OUTPUTS, layer_nodes=(48, 48), learning_rate=1e-3,
+            actor_model = DenseModel(inputs=INPUTS, outputs=OUTPUTS, layer_nodes=(128, 128, 128),
                                      inner_activation='relu', output_activation='tanh')
             critic_model = BaseCriticModel(inputs=INPUTS, outputs=OUTPUTS)
             agent = DDPGAgent(
                 actor_model, critic_model=critic_model,
-                exploration=OrnsteinUhlenbeck(theta=0.15, sigma=0.05),
+                exploration=OrnsteinUhlenbeck(theta=0.15, sigma=0.05, dt=1 / 60, size=OUTPUTS),
             )
             print("Created agent")
             return agent
@@ -210,19 +254,59 @@ class AgentHandler(BaseAgentHandler):
         ])
 
     def end_episode_cleanup(self):
-        self.total_rewards.append(self.current_shot_total_reward)
-        self.episode += 1
-        print(f"Completed shot {self.episode}: reward: {self.current_shot_total_reward}")
+        self.has_touched = False
+        self.just_jumped = False
+
+        if self.evaluation:
+            self.evaluation_rewards.append(self.current_shot_total_reward)
+            self.evaluations += 1
+            print(f"Completed evaluation {self.evaluations}: reward: {self.current_shot_total_reward}")
+        else:
+            self.training_rewards.append(self.current_shot_total_reward)
+            print(f"Completed shot {self.episode}: reward: {self.current_shot_total_reward}")
         self.current_shot_total_reward = 0
-        self.ghost_override = random.random() < 0.1
-        self.ghost_handler.randomise_current_ghost()
+        self.episode += 1
+
+        if self.episode % 50 == 1:
+            self.evaluation = True
+            self.ghost_override = False
+            if self.episode % 200 == 1:
+                self.current_agent.actor_model.save_model('actor')
+                self.current_agent.critic_model.save_model('critic')
+        else:
+            self.evaluation = False
+            self.ghost_override = random.random() < 0.3
+            self.ghost_handler.randomise_current_ghost()
 
     def get_enforced_action(self, rb_tick: RigidBodyTick) -> np.ndarray:
         ghost_controller_state = self.ghost_handler.get_ghost_controller_state(rb_tick)
         # print(ghost_controller_state.__dict__, 'ghost')
         return self.get_actions_from_controller_state(ghost_controller_state)
 
-    def render_ghost_override(self):
-        self.renderer.begin_rendering()
-        self.renderer.draw_string_2d(300, 50, 5, 5, "Ghost override", self.renderer.white())
-        self.renderer.end_rendering()
+    def draw(self, game_state: GameState):
+        renderer = self.renderer
+        renderer.begin_rendering('agent_handler')
+        x_scale = y_scale = 3
+        renderer.draw_rect_2d(1095, 95, 440, 50, True, renderer.create_color(80, 0, 0, 0))
+        renderer.draw_string_2d(1100, 100, x_scale, y_scale, f"EPISODE: {self.episode}",
+                                renderer.white())
+
+        renderer.draw_rect_2d(1095, 145, 440, 50, True, renderer.create_color(80, 0, 0, 0))
+        renderer.draw_string_2d(1100, 150, x_scale, y_scale,
+                                f"GOALS: {self.goals} ({self.goals - self.ghost_goals} ML)",
+                                renderer.white())
+
+        renderer.draw_rect_2d(1095, 195, 440, 50, True, renderer.create_color(80, 0, 0, 0))
+        renderer.draw_string_2d(1100, 200, x_scale, y_scale,
+                                f"EVAL: {self.evaluation_goals} / {self.evaluations}",
+                                renderer.white())
+
+        if game_state == GameState.ROUND_WAITING or game_state == GameState.ROUND_ONGOING:
+            if self.evaluation:
+                renderer.draw_string_2d(1050, 20, 5, 5, "EVALUATING",
+                                        renderer.white() if int(time.time() * 3) % 2 == 0 else renderer.grey())
+            elif self.ghost_override:
+                renderer.draw_string_2d(950, 20, 5, 5, "GHOST OVERRIDE",
+                                        renderer.white() if int(time.time() * 3) % 2 == 0 else renderer.grey())
+
+        renderer.end_rendering()

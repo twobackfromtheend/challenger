@@ -12,6 +12,15 @@ def skip_replay():
     pyautogui.click(button='right')
 
 
+def restart_training():
+    pyautogui.press('escape')
+    pyautogui.press('down')
+    pyautogui.press('enter')
+    pyautogui.press('left')
+    pyautogui.press('enter')
+    # rlbot will need to be restarted
+
+
 class GameState(Enum):
     PAUSED = -1
     ROUND_WAITING = 1

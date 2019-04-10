@@ -1,7 +1,7 @@
 import copy
 import logging
 import time
-from typing import Union
+from typing import Union, Optional
 
 from challenger_bot.car_controllers import CarController
 from challenger_bot.game_controller import GameState
@@ -34,6 +34,8 @@ class Challenger(BaseAgent):
     rounds_ball_data = np.array(rounds_ball_data)
     previous_packet: GameTickPacket = None
     current_round: int = None
+
+    game_state_finished_time: Optional[float] = None
 
     ghost_handler = GhostHandler(CHALLENGE)
     saving_ghost: bool = False
@@ -102,6 +104,13 @@ class Challenger(BaseAgent):
         if current_game_state == GameState.REPLAY:
             game_controller.reset_shot()
 
+        if current_game_state == GameState.ROUND_FINISHED:
+            if self.game_state_finished_time is None:
+                self.game_state_finished_time = time.time()
+            if time.time() - self.game_state_finished_time > 1:
+                game_controller.reset_shot()
+                self.game_state_finished_time = None
+
         self.previous_packet = copy.copy(packet)
         # print(self.controller_state.__dict__)
         self.draw(game_state=current_game_state, draw_controller_state=draw_controller_state)
@@ -130,19 +139,20 @@ class Challenger(BaseAgent):
         # Round number
         x_scale = 3
         y_scale = 3
+        y_offset = 50
         current_round_str = str(self.current_round) if self.current_round is not None else 'None'
-        renderer.draw_rect_2d(10, 95, 500, 50, True, renderer.create_color(80, 0, 0, 0))
-        renderer.draw_string_2d(15, 100, x_scale, y_scale, f"ROUND: {current_round_str}",
+        renderer.draw_rect_2d(10, 95 + y_offset, 500, 50, True, renderer.create_color(80, 0, 0, 0))
+        renderer.draw_string_2d(15, 100 + y_offset, x_scale, y_scale, f"ROUND: {current_round_str}",
                                 renderer.white())
 
         # Saving Ghost
-        renderer.draw_rect_2d(10, 145, 500, 50, True, renderer.create_color(80, 0, 0, 0))
-        renderer.draw_string_2d(15, 150, x_scale, y_scale, f"SAVING GHOST: {self.saving_ghost}",
+        renderer.draw_rect_2d(10, 145 + y_offset, 500, 50, True, renderer.create_color(80, 0, 0, 0))
+        renderer.draw_string_2d(15, 150 + y_offset, x_scale, y_scale, f"SAVING GHOST: {self.saving_ghost}",
                                 renderer.white())
 
         # Car controller
-        renderer.draw_rect_2d(10, 195, 500, 50, True, renderer.create_color(80, 0, 0, 0))
-        renderer.draw_string_2d(15, 200, x_scale, y_scale, f"Controller: {self.current_car_controller.name}",
+        renderer.draw_rect_2d(10, 195 + y_offset, 500, 50, True, renderer.create_color(80, 0, 0, 0))
+        renderer.draw_string_2d(15, 200 + y_offset, x_scale, y_scale, f"Controller: {self.current_car_controller.name}",
                                 renderer.white())
 
         # # Agent Handler Enabled
@@ -176,7 +186,7 @@ class Challenger(BaseAgent):
                 'height': 80,
             },
             GameState.ROUND_ONGOING: {
-                'color': renderer.green(),
+                'color': renderer.lime(),
                 'scale': 4,
                 'width': 470,
                 'height': 80,
@@ -252,4 +262,5 @@ class Challenger(BaseAgent):
             self.saving_ghost = False
             self.ghost_handler.save_ghost(self.current_round)
         else:
-            self.saving_ghost = True
+            if self.current_car_controller == CarController.DS4:
+                self.saving_ghost = True

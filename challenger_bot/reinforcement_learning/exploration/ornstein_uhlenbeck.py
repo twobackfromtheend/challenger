@@ -28,3 +28,12 @@ class OrnsteinUhlenbeck:
 
     def reset_states(self):
         self.previous_noise = np.random.normal(self.mu, self.sigma, size=self.size)
+
+
+if __name__ == '__main__':
+    size = 5
+    ou = OrnsteinUhlenbeck(theta=0.15, sigma=0.05, size=size)
+    for i in range(100):
+        action = ou.get_action(np.zeros(size))
+        print(action)
+

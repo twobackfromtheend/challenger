@@ -10,13 +10,13 @@ class DenseModel(BaseActorModel):
 
     def __init__(self, inputs: int, outputs: int,
                  layer_nodes: Sequence[int] = (24, 24),
-                 inner_activation=None, output_activation='linear',
+                 inner_activation='relu', output_activation='linear',
                  regularizer=None,
                  **kwargs):
         import tensorflow as tf
 
         self.layer_nodes = layer_nodes
-        self.inner_activation = inner_activation if inner_activation is not None else tf.nn.relu
+        self.inner_activation = inner_activation
         self.output_activation = output_activation
         self.regularizer = regularizer if regularizer is not None else tf.keras.regularizers.l2(1e-4)
         # self.learning_rate = learning_rate
