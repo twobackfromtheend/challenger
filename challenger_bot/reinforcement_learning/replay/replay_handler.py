@@ -12,9 +12,11 @@ class ExperienceReplayHandler:
     TODO: Look at deque: https://github.com/keras-rl/keras-rl/issues/165
     """
 
-    def __init__(self, size: int = 100000, batch_size: int = 128):
+    def __init__(self, size: int = 100000, batch_size: int = 128, warmup: int = 0):
         self.size = size
         self.batch_size = batch_size
+        self.warmup = warmup
+        self.warmed_up = False
         self.memory: Deque[Experience] = deque(maxlen=size)
         self.reached_max_size = False
 
@@ -24,9 +26,12 @@ class ExperienceReplayHandler:
         if not self.reached_max_size and len(self.memory) == self.size:
             self.reached_max_size = True
             print("Reached max replay memory size.")
+        if not self.warmed_up and len(self.memory) >= self.warmup:
+            self.warmed_up = True
+            print("Replay memory warmed up")
 
     def sample(self):
-        if self.batch_size > len(self.memory):
+        if self.batch_size > len(self.memory) or self.warmup > len(self.memory):
             raise InsufficientExperiencesError
         return random.sample(self.memory, self.batch_size)
 

@@ -14,21 +14,23 @@ from challenger_bot.reinforcement_learning.agent import DDPGAgent
 from challenger_bot.reinforcement_learning.exploration.ornstein_uhlenbeck import OrnsteinUhlenbeck
 from challenger_bot.reinforcement_learning.model.base_critic_model import BaseCriticModel
 from challenger_bot.reinforcement_learning.model.dense_model import DenseModel
+from challenger_bot.reinforcement_learning.model_handler import get_model_savepath, get_latest_model
 
 if TYPE_CHECKING:
     from challenger_bot.ghosts.ghost import GhostHandler
     from rlbot.utils.rendering.rendering_manager import RenderingManager
 
 WAIT_TIME_BEFORE_HIT = 1
-trained_models_folder = Path(__file__).parent / "trained_models"
 
 
 class AgentHandler(BaseAgentHandler):
-    def __init__(self, ghost_handler: 'GhostHandler', renderer: 'RenderingManager'):
-        super().__init__(ghost_handler, renderer)
+    trained_models_folder = Path(__file__).parent / "trained_models"
 
-        self.trained_actor_filepath: Optional[Path] = None
-        self.trained_critic_filepath: Optional[Path] = None
+    def __init__(self, ghost_handler: 'GhostHandler', renderer: 'RenderingManager', challenge: str):
+        super().__init__(ghost_handler, renderer)
+        self.challenge = challenge
+        self.challenge_trained_models_folder: Path = self.trained_models_folder / challenge
+        self.round_trained_models_folder: Optional[Path] = None
 
         self.current_agent: Optional[DDPGAgent] = None
 
@@ -55,8 +57,12 @@ class AgentHandler(BaseAgentHandler):
         self.just_jumped = False
 
     def get_agent(self, round_: int):
-        trained_actor_filepath = trained_models_folder / f"{round_}_actor.h5"
-        trained_critic_filepath = trained_models_folder / f"{round_}_critic.h5"
+        self.round_trained_models_folder: Path = self.challenge_trained_models_folder / str(round_)
+
+        DESIRED_MODEL = "_20190411-113911.h5"
+        trained_actor_filepath = get_latest_model(self.round_trained_models_folder, "actor*" + DESIRED_MODEL)
+        trained_critic_filepath = get_latest_model(self.round_trained_models_folder, "critic*" + DESIRED_MODEL)
+
         if trained_actor_filepath.is_file() and trained_critic_filepath.is_file():
             self.current_agent = self.create_agent((trained_actor_filepath, trained_critic_filepath))
         else:
@@ -83,8 +89,6 @@ class AgentHandler(BaseAgentHandler):
         elif self.previous_game_state == GameState.ROUND_ONGOING and game_state == GameState.ROUND_FINISHED:
             train_on_frame = True
             done = True
-            self.current_shot_start_time = None
-            # print("bye")
 
         if train_on_frame:
             # print("train")
@@ -214,17 +218,21 @@ class AgentHandler(BaseAgentHandler):
         INPUTS = 21
         OUTPUTS = 8  # steer, throttle, pitch, yaw, roll, jump, boost, handbrake
         if trained_model_filepaths:
-            pass
+            actor_model = DenseModel(INPUTS, OUTPUTS, load_from_filepath=str(trained_model_filepaths[0]))
+            critic_model = BaseCriticModel(INPUTS, OUTPUTS,
+                                           load_from_filepath=str(trained_model_filepaths[1]))
+            print(f"Loaded trained actor: {trained_model_filepaths[0].name} and "
+                  f"trained critic: {trained_model_filepaths[1].name}")
         else:
             actor_model = DenseModel(inputs=INPUTS, outputs=OUTPUTS, layer_nodes=(128, 128, 128),
                                      inner_activation='relu', output_activation='tanh')
             critic_model = BaseCriticModel(inputs=INPUTS, outputs=OUTPUTS)
-            agent = DDPGAgent(
-                actor_model, critic_model=critic_model,
-                exploration=OrnsteinUhlenbeck(theta=0.15, sigma=0.05, dt=1 / 60, size=OUTPUTS),
-            )
-            print("Created agent")
-            return agent
+        agent = DDPGAgent(
+            actor_model, critic_model=critic_model,
+            exploration=OrnsteinUhlenbeck(theta=0.15, sigma=0.05, dt=1 / 60, size=OUTPUTS),
+        )
+        print("Created agent")
+        return agent
 
     @staticmethod
     def get_controller_state_from_actions(action: np.ndarray) -> SimpleControllerState:
@@ -256,23 +264,26 @@ class AgentHandler(BaseAgentHandler):
     def end_episode_cleanup(self):
         self.has_touched = False
         self.just_jumped = False
+        self.current_shot_start_time = None
 
         if self.evaluation:
             self.evaluation_rewards.append(self.current_shot_total_reward)
             self.evaluations += 1
-            print(f"Completed evaluation {self.evaluations}: reward: {self.current_shot_total_reward}")
+            print(f"Evaluation {self.evaluations} reward: {self.current_shot_total_reward:.2f}")
         else:
             self.training_rewards.append(self.current_shot_total_reward)
-            print(f"Completed shot {self.episode}: reward: {self.current_shot_total_reward}")
+            print(f"Shot {self.episode} reward: {self.current_shot_total_reward:.2f}")
         self.current_shot_total_reward = 0
         self.episode += 1
 
         if self.episode % 50 == 1:
             self.evaluation = True
             self.ghost_override = False
-            if self.episode % 200 == 1:
-                self.current_agent.actor_model.save_model('actor')
-                self.current_agent.critic_model.save_model('critic')
+            if self.episode % 200 == 1 and self.episode > 500:
+                actor_savepath = get_model_savepath(self.round_trained_models_folder, f"actor_{self.episode}")
+                critic_savepath = get_model_savepath(self.round_trained_models_folder, f"critic_{self.episode}")
+                self.current_agent.actor_model.save_model(actor_savepath)
+                self.current_agent.critic_model.save_model(critic_savepath)
         else:
             self.evaluation = False
             self.ghost_override = random.random() < 0.3

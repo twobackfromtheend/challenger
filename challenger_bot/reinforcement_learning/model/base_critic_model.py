@@ -2,20 +2,26 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from challenger_bot.reinforcement_learning.model.base_actor_model import BaseActorModel
+from challenger_bot.reinforcement_learning.model.base_model import BaseModel
 
 if TYPE_CHECKING:
     from tensorflow.python.keras.models import Model
     from tensorflow.python.keras.optimizers import Optimizer
 
 
-class BaseCriticModel(BaseActorModel):
+class BaseCriticModel(BaseModel):
     def __init__(self, inputs: int, outputs: int, load_from_filepath: str = None, **kwargs):
         from tensorflow.python.keras.layers import Input
 
         self.action_input: Input = None
 
         super().__init__(inputs, outputs, load_from_filepath, **kwargs)
+
+        if load_from_filepath:
+            from tensorflow.python.keras.optimizers import Adam
+            self.model.compile(optimizer=Adam(lr=1e-4), loss='mse')
+            self.action_input = self.model.get_layer("action_input").input
+            self.observation_input = self.model.get_layer("observation_input").input
 
         # After build_model is called and self.model is set.
         self.action_input_index = self.model.input.index(self.action_input)
@@ -57,7 +63,7 @@ class BaseCriticModel(BaseActorModel):
         input_.insert(self.action_input_index, actions)
         return input_
 
-    def get_actor_train_fn(self, actor_model: BaseActorModel, actor_optimizer: 'Optimizer'):
+    def get_actor_train_fn(self, actor_model: BaseModel, actor_optimizer: 'Optimizer'):
         from tensorflow.python.keras import backend as K
 
         combined_inputs = []

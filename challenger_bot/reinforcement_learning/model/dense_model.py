@@ -1,14 +1,14 @@
 from typing import Sequence, TYPE_CHECKING
 
-from challenger_bot.reinforcement_learning.model.base_actor_model import BaseActorModel
+from challenger_bot.reinforcement_learning.model.base_model import BaseModel
 
 if TYPE_CHECKING:
     from tensorflow.python.keras import Sequential
 
 
-class DenseModel(BaseActorModel):
+class DenseModel(BaseModel):
 
-    def __init__(self, inputs: int, outputs: int,
+    def __init__(self, inputs: int, outputs: int, load_from_filepath: str = None,
                  layer_nodes: Sequence[int] = (24, 24),
                  inner_activation='relu', output_activation='linear',
                  regularizer=None,
@@ -22,7 +22,7 @@ class DenseModel(BaseActorModel):
         # self.learning_rate = learning_rate
         # self.loss_fn = self.get_loss_fn(loss_fn)
 
-        super().__init__(inputs, outputs)
+        super().__init__(inputs, outputs, load_from_filepath=load_from_filepath)
 
     def build_model(self) -> 'Sequential':
         from tensorflow import keras

@@ -4,7 +4,7 @@ from typing import Union, Optional
 import numpy as np
 
 from challenger_bot.reinforcement_learning.exploration.ornstein_uhlenbeck import OrnsteinUhlenbeck
-from challenger_bot.reinforcement_learning.model.base_actor_model import BaseActorModel
+from challenger_bot.reinforcement_learning.model.base_model import BaseModel
 from challenger_bot.reinforcement_learning.model.base_critic_model import BaseCriticModel
 from challenger_bot.reinforcement_learning.replay.experience import InsufficientExperiencesError
 from challenger_bot.reinforcement_learning.replay.replay_handler import ExperienceReplayHandler
@@ -12,7 +12,7 @@ from challenger_bot.reinforcement_learning.replay.replay_handler import Experien
 
 class DDPGAgent:
     def __init__(self,
-                 actor_model: BaseActorModel,
+                 actor_model: BaseModel,
                  critic_model: BaseCriticModel,
                  exploration: OrnsteinUhlenbeck,
                  ):
@@ -23,7 +23,7 @@ class DDPGAgent:
         self.target_critic_model = critic_model.create_copy()
 
         self.exploration = exploration
-        self.replay_handler = ExperienceReplayHandler(size=1000000, batch_size=512)
+        self.replay_handler = ExperienceReplayHandler(size=1000000, batch_size=512, warmup=10000)
 
         self.last_state: np.ndarray = np.zeros(actor_model.inputs)
         self.last_action: np.ndarray = np.zeros(actor_model.outputs)

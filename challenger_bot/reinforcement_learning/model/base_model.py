@@ -1,4 +1,5 @@
 import time
+from pathlib import Path
 from typing import Union, Callable, TYPE_CHECKING
 
 import numpy as np
@@ -7,7 +8,7 @@ if TYPE_CHECKING:
     from tensorflow.python.keras import Sequential, Model
 
 
-class BaseActorModel:
+class BaseModel:
     def __init__(self, inputs: int, outputs: int, load_from_filepath: str = None, **kwargs):
         self.inputs = inputs
         self.outputs = outputs
@@ -22,13 +23,14 @@ class BaseActorModel:
     def build_model(self) -> Union['Sequential', 'Model']:
         raise NotImplementedError
 
-    def save_model(self, name: str, use_timestamp: bool = True):
+    def save_model(self, filepath: str):
         from tensorflow.python.keras.models import save_model
+        save_model(self.model, filepath)
 
-        filename = f"model_{name}"
-        if use_timestamp:
-            filename += f"{time.strftime('%Y%m%d-%H%M%S')}"
-        save_model(self.model, filename)
+    @staticmethod
+    def get_models(folder_path: str, glob="**/*.h5"):
+        folder = Path(folder_path)
+        return list(folder.glob(glob))
 
     def create_copy(self):
         return self.__class__(**self.__dict__)
@@ -72,3 +74,4 @@ class BaseActorModel:
 
     def predict_on_batch(self, x: np.ndarray) -> np.ndarray:
         return self.model.predict_on_batch(x)
+
