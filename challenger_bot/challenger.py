@@ -88,7 +88,7 @@ class Challenger(BaseAgent):
         # Get controls based on car_controller
         if self.current_car_controller == CarController.AGENT and self.agent_handler.is_setup():
             self.controller_state = self.agent_handler.challenger_tick(packet, current_game_state,
-                                                                       self.get_rigid_body_tick)
+                                                                       self.get_rigid_body_tick, self.previous_packet)
             # print(self.controller_state.__dict__)
             draw_controller_state = False
         else:

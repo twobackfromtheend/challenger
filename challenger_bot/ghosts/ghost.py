@@ -85,7 +85,27 @@ class GhostHandler:
         round_folder = self.get_round_folder(round_)
         ghosts = []
         for file in round_folder.glob("*.csv"):
-            df = pd.read_csv(file, index_col=0)
+            df = pd.read_csv(file, index_col=0, skipinitialspace=True)
+
+            # _df = df[df.index % 2 == 0]
+            # _df = _df.set_index((_df.index / 2).astype(int))
+
+            # x = [69542,-1140.3399658203125,-5306.8798828125,139.42999267578125,False,False,False,0.0,0.0,0.0,0.0,-1096.669921875,-5901.7998046875,0.0,36.81999969482422][1:]
+            #
+            # _df = df.shift()
+            # if _df.ball_x.values[0] == x[0]:
+            #     print("WHAT")
+            # else:
+            #     # _df = _df.shift()
+            #     # print(_df.index.min())
+            #     # continue
+            #     _df.loc[_df.index.min()] = x
+            #
+            #     dtypes = {'ball_x': 'float64', 'ball_y': 'float64', 'ball_z': 'float64', 'boost': 'bool', 'handbrake': 'bool', 'jump': 'bool', 'pitch': 'float64', 'roll': 'float64', 'steer': 'float64', 'throttle': 'float64', 'x': 'float64', 'y': 'float64', 'yaw': 'float64', 'z': 'float64'}
+            #     _df = _df.astype(dtypes)
+            #
+            #     _df.to_csv(file)
+            # continue
 
             # Remove duplicate frames
             # df = df[~df.index.duplicated(keep='first')]
@@ -117,20 +137,22 @@ class GhostHandler:
 
     def get_current_frame_delta(self, rb_tick: RigidBodyTick) -> int:
         car_velocity = rb_tick.players[0].state.velocity
-        car_velocity_is_zero = abs(car_velocity.x) < 1 and abs(car_velocity.y) < 1 and abs(car_velocity.z) < 10
+        car_velocity_is_zero = abs(car_velocity.x) < 5 and abs(car_velocity.y) < 5 and abs(car_velocity.z) < 10
         ball_location = rb_tick.ball.state.location
         ball_location_array = np.array([ball_location.x, ball_location.y, ball_location.z])
         ball_distance_from_start = np.sqrt(((self.current_ghost_ball_start_position - ball_location_array) ** 2).sum())
 
-        # print(ball_location_array, self.current_ghost_ball_start_position)
+        # print(ball_location_array, self.current_ghost_ball_start_position.values)
         # print(ball_distance_from_start)
+        # print(car_velocity, "car vel")
         ball_frame = rb_tick.ball.state.frame
-        if ball_distance_from_start < 1e-5 and car_velocity_is_zero:
+        if ball_distance_from_start < 1e-5: # and car_velocity_is_zero:
             self.replay_ghost_start_frame = ball_frame
         if self.replay_ghost_start_frame is None:
             print("Have not found replay ghost start frame.")
             return ball_frame
         current_frame_delta = ball_frame - self.replay_ghost_start_frame
+        # print(self.current_ghost_first_control_frame, current_frame_delta)
         return min(current_frame_delta + self.current_ghost_first_control_frame, self.current_ghost.index.max())
 
     def get_ghost_controller_state(self, rb_tick: RigidBodyTick):
@@ -150,5 +172,6 @@ class GhostHandler:
 
 if __name__ == '__main__':
     ghost_handler = GhostHandler("7657-2F43-9B3A-C1F1")
+    ghost_handler.get_ghosts(33)
     ghost_handler.get_ghosts(15)
     ghost_handler.get_location(1)

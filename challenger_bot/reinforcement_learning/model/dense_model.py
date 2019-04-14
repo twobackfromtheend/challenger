@@ -18,7 +18,7 @@ class DenseModel(BaseModel):
         self.layer_nodes = layer_nodes
         self.inner_activation = inner_activation
         self.output_activation = output_activation
-        self.regularizer = regularizer if regularizer is not None else tf.keras.regularizers.l2(1e-4)
+        self.regularizer = regularizer if regularizer is not None else tf.keras.regularizers.l2(1e-6)
         # self.learning_rate = learning_rate
         # self.loss_fn = self.get_loss_fn(loss_fn)
 

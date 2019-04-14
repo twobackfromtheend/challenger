@@ -20,15 +20,14 @@ if TYPE_CHECKING:
     from challenger_bot.ghosts.ghost import GhostHandler
     from rlbot.utils.rendering.rendering_manager import RenderingManager
 
-WAIT_TIME_BEFORE_HIT = 1
+WAIT_TIME_BEFORE_HIT = 0
 
 
 class AgentHandler(BaseAgentHandler):
     trained_models_folder = Path(__file__).parent / "trained_models"
 
     def __init__(self, ghost_handler: 'GhostHandler', renderer: 'RenderingManager', challenge: str):
-        super().__init__(ghost_handler, renderer)
-        self.challenge = challenge
+        super().__init__(ghost_handler, renderer, challenge)
         self.challenge_trained_models_folder: Path = self.trained_models_folder / challenge
         self.round_trained_models_folder: Optional[Path] = None
 
@@ -55,15 +54,19 @@ class AgentHandler(BaseAgentHandler):
         self.latest_touch_time = 0
         self.last_controller_state = None
         self.just_jumped = False
+        self.has_touched_ceiling = False
 
     def get_agent(self, round_: int):
         self.round_trained_models_folder: Path = self.challenge_trained_models_folder / str(round_)
+        self.round_trained_models_folder.mkdir(exist_ok=True)
 
-        DESIRED_MODEL = "_20190411-113911.h5"
+        # DESIRED_MODEL = "_20190411-113911.h5"
+        DESIRED_MODEL = ""
         trained_actor_filepath = get_latest_model(self.round_trained_models_folder, "actor*" + DESIRED_MODEL)
         trained_critic_filepath = get_latest_model(self.round_trained_models_folder, "critic*" + DESIRED_MODEL)
 
-        if trained_actor_filepath.is_file() and trained_critic_filepath.is_file():
+        if trained_actor_filepath is not None and trained_critic_filepath is not None and \
+                trained_actor_filepath.is_file() and trained_critic_filepath.is_file():
             self.current_agent = self.create_agent((trained_actor_filepath, trained_critic_filepath))
         else:
             self.current_agent = self.create_agent()
@@ -72,7 +75,8 @@ class AgentHandler(BaseAgentHandler):
         return self.current_agent is not None
 
     def challenger_tick(self, packet: GameTickPacket, game_state: GameState,
-                        get_rb_tick: Callable[[], RigidBodyTick]) -> SimpleControllerState:
+                        get_rb_tick: Callable[[], RigidBodyTick],
+                        previous_packet: GameTickPacket) -> SimpleControllerState:
         if self.current_agent is None:
             raise Exception("Not loaded agent.")
 
@@ -175,11 +179,16 @@ class AgentHandler(BaseAgentHandler):
             self.latest_touch_time = latest_touch.time_seconds
             touched_this_frame = True
         if done:
-            DONE_WEIGHT = 50
+            DONE_WEIGHT = 30
             ball_location = rb_tick.ball.state.location
+            ball_distance_from_goal = ((ball_location.y - 5010) ** 2 + abs(ball_location.x) ** 2 + (
+                        ball_location.z - 300) ** 2) ** 0.5
+            reward = 5 - ball_distance_from_goal / 1000
+            # print(ball_distance_from_goal, reward)
+            # print(f"ball distance from goal reward: {reward}")
             # print(ball_location)
             # Check if scored
-            if 4990 < ball_location.y < 5050 and abs(ball_location.x) < 900 and ball_location.z < 650:
+            if 4995 < ball_location.y < 5050 and abs(ball_location.x) < 900 and ball_location.z < 650:
                 if self.evaluation:
                     self.evaluation_goals += 1
                 else:
@@ -188,26 +197,38 @@ class AgentHandler(BaseAgentHandler):
                         self.ghost_goals += 1
                 return DONE_WEIGHT
             else:
-                return -DONE_WEIGHT
+                return -DONE_WEIGHT + reward
 
         reward = 0
 
+        car_location = rb_tick.players[0].state.location
+        # Reward for flip reset off ceiling in specified place
+        # if not self.has_touched_ceiling and\
+        #         -1380 < car_location.x < -1280 and -2550 < car_location.y < -2450 and\
+        if not self.has_touched_ceiling and \
+                car_location.z > 2020 and -1700 < car_location.x < -900 and -3000 < car_location.y < -2000:
+            if packet.game_cars[0].has_wheel_contact:
+                reward += 20
+                print("Touched ceiling")
+                self.has_touched_ceiling = True
+
         # Punishment for boosting / jumping
         if self.last_controller_state is not None:
-            if self.last_controller_state.boost:
-                reward -= 0.04
+            # if self.last_controller_state.boost:
+            #     reward -= 0.04
             if self.just_jumped:
                 reward -= 5
 
         # Reward for first touch
-        if touched_this_frame and not self.has_touched:
-            reward += 20
+        if touched_this_frame and not self.has_touched and self.has_touched_ceiling:
+            reward += 40
+            print("Touched ball")
             self.has_touched = True
 
         # Get distance from ghost
         ghost_location = self.ghost_handler.get_location(rb_tick)
 
-        car_location = rb_tick.players[0].state.location
+        # car_location = rb_tick.players[0].state.location
         car_location_array = np.array([car_location.x, car_location.y, car_location.z])
         distance_from_ghost = np.sqrt(((car_location_array - ghost_location) ** 2).sum())
         reward += -distance_from_ghost / 10000
@@ -264,6 +285,7 @@ class AgentHandler(BaseAgentHandler):
     def end_episode_cleanup(self):
         self.has_touched = False
         self.just_jumped = False
+        self.has_touched_ceiling = False
         self.current_shot_start_time = None
 
         if self.evaluation:
@@ -280,6 +302,7 @@ class AgentHandler(BaseAgentHandler):
             self.evaluation = True
             self.ghost_override = False
             if self.episode % 200 == 1 and self.episode > 500:
+                print(f"Saving models: {self.round_trained_models_folder}")
                 actor_savepath = get_model_savepath(self.round_trained_models_folder, f"actor_{self.episode}")
                 critic_savepath = get_model_savepath(self.round_trained_models_folder, f"critic_{self.episode}")
                 self.current_agent.actor_model.save_model(actor_savepath)

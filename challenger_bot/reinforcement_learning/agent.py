@@ -23,7 +23,7 @@ class DDPGAgent:
         self.target_critic_model = critic_model.create_copy()
 
         self.exploration = exploration
-        self.replay_handler = ExperienceReplayHandler(size=1000000, batch_size=512, warmup=10000)
+        self.replay_handler = ExperienceReplayHandler(size=10000000, batch_size=1024, warmup=50000)
 
         self.last_state: np.ndarray = np.zeros(actor_model.inputs)
         self.last_action: np.ndarray = np.zeros(actor_model.outputs)

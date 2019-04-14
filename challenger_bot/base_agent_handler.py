@@ -10,13 +10,15 @@ from challenger_bot.ghosts.ghost import GhostHandler
 
 
 class BaseAgentHandler:
-    def __init__(self, ghost_handler: GhostHandler, renderer: RenderingManager):
+    def __init__(self, ghost_handler: GhostHandler, renderer: RenderingManager, challenge: str):
         self.ghost_handler = ghost_handler
         self.renderer = renderer
+        self.challenge = challenge
 
     def is_setup(self) -> bool:
         raise NotImplementedError
 
     def challenger_tick(self, packet: GameTickPacket, game_state: GameState,
-                        get_rb_tick: Callable[[], RigidBodyTick]) -> SimpleControllerState:
+                        get_rb_tick: Callable[[], RigidBodyTick],
+                        previous_packet: GameTickPacket) -> SimpleControllerState:
         raise NotImplementedError
