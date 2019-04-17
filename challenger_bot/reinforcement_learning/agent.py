@@ -28,7 +28,7 @@ class DDPGAgent:
         self.last_state: np.ndarray = np.zeros(actor_model.inputs)
         self.last_action: np.ndarray = np.zeros(actor_model.outputs)
 
-        self.discount_rate = 0.995
+        self.discount_rate = 0.95
         from tensorflow.python.keras.optimizers import Adam
         self.actor_train_fn = self.critic_model.get_actor_train_fn(self.actor_model, Adam(1e-4))
 
@@ -52,6 +52,7 @@ class DDPGAgent:
             pass
 
         if not done:
+            self.discount_rate = min(self.discount_rate + 0.00001, 0.997)
             if evaluation:
                 action = self.get_action(state, True)
             elif enforced_action is None:
