@@ -1,6 +1,6 @@
 from typing import Sequence, TYPE_CHECKING
 
-from challenger_bot.reinforcement_learning.model.base_model import BaseModel
+from eagle_bot.reinforcement_learning.model.base_model import BaseModel
 
 if TYPE_CHECKING:
     from tensorflow.python.keras import Sequential

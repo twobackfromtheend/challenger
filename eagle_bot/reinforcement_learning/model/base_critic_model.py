@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from challenger_bot.reinforcement_learning.model.base_model import BaseModel
+from eagle_bot.reinforcement_learning.model.base_model import BaseModel
 
 if TYPE_CHECKING:
     from tensorflow.python.keras.models import Model
@@ -10,16 +10,17 @@ if TYPE_CHECKING:
 
 
 class BaseCriticModel(BaseModel):
-    def __init__(self, inputs: int, outputs: int, load_from_filepath: str = None, **kwargs):
+    def __init__(self, inputs: int, outputs: int, learning_rate: float, load_from_filepath: str = None, **kwargs):
         from tensorflow.python.keras.layers import Input
 
+        self.learning_rate = learning_rate
         self.action_input: Input = None
 
         super().__init__(inputs, outputs, load_from_filepath, **kwargs)
 
         if load_from_filepath:
             from tensorflow.python.keras.optimizers import Adam
-            self.model.compile(optimizer=Adam(lr=1e-6), loss='mse')
+            self.model.compile(optimizer=Adam(lr=self.learning_rate), loss='mse')
             self.action_input = self.model.get_layer("action_input").input
             self.observation_input = self.model.get_layer("observation_input").input
 
@@ -39,14 +40,12 @@ class BaseCriticModel(BaseModel):
         x = Activation('relu')(x)
         x = Dense(256)(x)
         x = Activation('relu')(x)
-        x = Dense(256)(x)
-        x = Activation('relu')(x)
 
         x = Dense(1, activation='linear')(x)
 
         model = Model(inputs=inputs, outputs=x)
 
-        model.compile(optimizer=Adam(lr=1e-4), loss='mse')
+        model.compile(optimizer=Adam(lr=self.learning_rate), loss='mse')
         # print(model.summary())
         return model
 

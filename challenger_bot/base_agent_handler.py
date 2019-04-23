@@ -11,8 +11,6 @@ from challenger_bot.ghosts.ghost import GhostHandler
 
 class BaseAgentHandler:
     def __init__(self, ghost_handler: GhostHandler, renderer: RenderingManager, challenge: str):
-        self.ghost_handler = ghost_handler
-        self.renderer = renderer
         self.challenge = challenge
 
     def is_setup(self) -> bool:

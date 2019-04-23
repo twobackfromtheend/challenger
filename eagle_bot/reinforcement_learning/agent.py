@@ -3,18 +3,18 @@ from typing import Union, Optional
 
 import numpy as np
 
-from challenger_bot.reinforcement_learning.exploration.ornstein_uhlenbeck import OrnsteinUhlenbeck
-from challenger_bot.reinforcement_learning.model.base_model import BaseModel
-from challenger_bot.reinforcement_learning.model.base_critic_model import BaseCriticModel
-from challenger_bot.reinforcement_learning.replay.experience import InsufficientExperiencesError
-from challenger_bot.reinforcement_learning.replay.replay_handler import ExperienceReplayHandler
+from eagle_bot.reinforcement_learning.exploration import OrnsteinUhlenbeckAndEpsilonGreedy
+from eagle_bot.reinforcement_learning.model.base_model import BaseModel
+from eagle_bot.reinforcement_learning.model.base_critic_model import BaseCriticModel
+from eagle_bot.reinforcement_learning.replay.experience import InsufficientExperiencesError
+from eagle_bot.reinforcement_learning.replay.replay_handler import ExperienceReplayHandler
 
 
 class DDPGAgent:
     def __init__(self,
                  actor_model: BaseModel,
                  critic_model: BaseCriticModel,
-                 exploration: OrnsteinUhlenbeck,
+                 exploration: OrnsteinUhlenbeckAndEpsilonGreedy,
                  actor_learning_rate: float
                  ):
         self.actor_model = actor_model
@@ -24,12 +24,12 @@ class DDPGAgent:
         self.target_critic_model = critic_model.create_copy()
 
         self.exploration = exploration
-        self.replay_handler = ExperienceReplayHandler(size=10000000, batch_size=512, warmup=50000)
+        self.replay_handler = ExperienceReplayHandler(size=10000000, batch_size=256, warmup=5000)
 
         self.last_state: np.ndarray = np.zeros(actor_model.inputs)
         self.last_action: np.ndarray = np.zeros(actor_model.outputs)
 
-        self.discount_rate = 0.997
+        self.discount_rate = 0.97
         from tensorflow.python.keras.optimizers import Adam
         self.actor_train_fn = self.critic_model.get_actor_train_fn(self.actor_model, Adam(actor_learning_rate))
 
@@ -42,7 +42,7 @@ class DDPGAgent:
     def train_with_get_output(self, state: np.ndarray, reward: float, done: bool,
                               enforced_action: Optional[np.ndarray] = None,
                               evaluation: bool = False) -> Union[np.ndarray, None]:
-        if done or random.random() < 0.4 or reward > 5:
+        if random.random() < 0.4:
             self.replay_handler.record_experience(self.last_state, self.last_action, reward, state, done)
 
         self.i += 1

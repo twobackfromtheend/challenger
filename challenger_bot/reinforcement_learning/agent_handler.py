@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from challenger_bot.ghosts.ghost import GhostHandler
     from rlbot.utils.rendering.rendering_manager import RenderingManager
 
-WAIT_TIME_BEFORE_HIT = 0
+WAIT_TIME_BEFORE_HIT = 1
 
 
 class AgentHandler(BaseAgentHandler):
@@ -245,12 +245,13 @@ class AgentHandler(BaseAgentHandler):
             print(f"Loaded trained actor: {trained_model_filepaths[0].name} and "
                   f"trained critic: {trained_model_filepaths[1].name}")
         else:
-            actor_model = DenseModel(inputs=INPUTS, outputs=OUTPUTS, layer_nodes=(128, 128, 128),
+            actor_model = DenseModel(inputs=INPUTS, outputs=OUTPUTS, layer_nodes=(256, 256, 256, 256),
                                      inner_activation='relu', output_activation='tanh')
             critic_model = BaseCriticModel(inputs=INPUTS, outputs=OUTPUTS)
         agent = DDPGAgent(
             actor_model, critic_model=critic_model,
             exploration=OrnsteinUhlenbeck(theta=0.15, sigma=0.03, dt=1 / 60, size=OUTPUTS),
+            actor_learning_rate=1e-6
         )
         print("Created agent")
         return agent
@@ -309,7 +310,7 @@ class AgentHandler(BaseAgentHandler):
                 self.current_agent.critic_model.save_model(critic_savepath)
         else:
             self.evaluation = False
-            self.ghost_override = random.random() < 0.3
+            self.ghost_override = random.random() < 0.1
             self.ghost_handler.randomise_current_ghost()
 
     def get_enforced_action(self, rb_tick: RigidBodyTick) -> np.ndarray:
@@ -321,26 +322,27 @@ class AgentHandler(BaseAgentHandler):
         renderer = self.renderer
         renderer.begin_rendering('agent_handler')
         x_scale = y_scale = 3
-        renderer.draw_rect_2d(1095, 95, 440, 50, True, renderer.create_color(80, 0, 0, 0))
-        renderer.draw_string_2d(1100, 100, x_scale, y_scale, f"EPISODE: {self.episode}",
+        x_offset = 675
+        renderer.draw_rect_2d(x_offset + 140, 95, 440, 50, True, renderer.create_color(80, 0, 0, 0))
+        renderer.draw_string_2d(x_offset + 145, 100, x_scale, y_scale, f"EPISODE: {self.episode}",
                                 renderer.white())
 
-        renderer.draw_rect_2d(1095, 145, 440, 50, True, renderer.create_color(80, 0, 0, 0))
-        renderer.draw_string_2d(1100, 150, x_scale, y_scale,
+        renderer.draw_rect_2d(x_offset + 140, 145, 440, 50, True, renderer.create_color(80, 0, 0, 0))
+        renderer.draw_string_2d(x_offset + 145, 150, x_scale, y_scale,
                                 f"GOALS: {self.goals} ({self.goals - self.ghost_goals} ML)",
                                 renderer.white())
 
-        renderer.draw_rect_2d(1095, 195, 440, 50, True, renderer.create_color(80, 0, 0, 0))
-        renderer.draw_string_2d(1100, 200, x_scale, y_scale,
+        renderer.draw_rect_2d(x_offset + 140, 195, 440, 50, True, renderer.create_color(80, 0, 0, 0))
+        renderer.draw_string_2d(x_offset + 145, 200, x_scale, y_scale,
                                 f"EVAL: {self.evaluation_goals} / {self.evaluations}",
                                 renderer.white())
 
         if game_state == GameState.ROUND_WAITING or game_state == GameState.ROUND_ONGOING:
             if self.evaluation:
-                renderer.draw_string_2d(1050, 20, 5, 5, "EVALUATING",
+                renderer.draw_string_2d(x_offset + 100, 20, 5, 5, "EVALUATING",
                                         renderer.white() if int(time.time() * 3) % 2 == 0 else renderer.grey())
             elif self.ghost_override:
-                renderer.draw_string_2d(950, 20, 5, 5, "GHOST OVERRIDE",
+                renderer.draw_string_2d(x_offset, 20, 5, 5, "GHOST OVERRIDE",
                                         renderer.white() if int(time.time() * 3) % 2 == 0 else renderer.grey())
 
         renderer.end_rendering()
