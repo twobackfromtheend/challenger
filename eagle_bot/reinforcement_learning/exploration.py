@@ -23,7 +23,7 @@ class OrnsteinUhlenbeckAndEpsilonGreedy:
         action = action + self.sample()
 
         for i in range(self.epsilon_actions):
-            if random.random() < 0.2:
+            if random.random() < 0.1:
                 action[-i - 1] = random.getrandbits(1) - 0.5
 
         return action

@@ -104,7 +104,6 @@ class EagleBot(BaseAgent):
         self.set_game_state(game_state)
         self.has_started_episode = False
         self.has_reset = True
-        print('hi')
 
     # def draw(self, game_state: GameState, draw_controller_state: bool = False):
     #     renderer = self.renderer

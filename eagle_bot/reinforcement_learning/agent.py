@@ -24,12 +24,12 @@ class DDPGAgent:
         self.target_critic_model = critic_model.create_copy()
 
         self.exploration = exploration
-        self.replay_handler = ExperienceReplayHandler(size=10000000, batch_size=256, warmup=5000)
+        self.replay_handler = ExperienceReplayHandler(size=1500000, batch_size=512, warmup=100000)
 
         self.last_state: np.ndarray = np.zeros(actor_model.inputs)
         self.last_action: np.ndarray = np.zeros(actor_model.outputs)
 
-        self.discount_rate = 0.97
+        self.discount_rate = 0.999  # https://www.wolframalpha.com/input/?i=ln(2)+%2F+(1+-+0.999)+%2F+60
         from tensorflow.python.keras.optimizers import Adam
         self.actor_train_fn = self.critic_model.get_actor_train_fn(self.actor_model, Adam(actor_learning_rate))
 
@@ -42,12 +42,13 @@ class DDPGAgent:
     def train_with_get_output(self, state: np.ndarray, reward: float, done: bool,
                               enforced_action: Optional[np.ndarray] = None,
                               evaluation: bool = False) -> Union[np.ndarray, None]:
-        if random.random() < 0.4:
+        if random.random() < 0.3 or done:
             self.replay_handler.record_experience(self.last_state, self.last_action, reward, state, done)
 
         self.i += 1
-        if self.i == 5:
-            self.update_target_models(True, 0.01)
+        # if done:
+        if self.i == 50 or done:
+            self.update_target_models(True, 0.005)
 
             try:
                 critic_loss = self.experience_replay()
@@ -58,7 +59,6 @@ class DDPGAgent:
             self.i = 0
 
         if not done:
-            self.discount_rate = min(self.discount_rate + 0.00001, 0.997)
             if evaluation:
                 action = self.get_action(state, True)
             elif enforced_action is None:
@@ -70,6 +70,8 @@ class DDPGAgent:
             self.last_action = action
             return action
         else:
+            # self.discount_rate = min(self.discount_rate + 0.00000001, 0.9993)
+
             self.reset_last_state_and_action()
             self.exploration.reset_states()
 

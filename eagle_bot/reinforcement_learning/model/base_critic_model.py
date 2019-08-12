@@ -20,6 +20,7 @@ class BaseCriticModel(BaseModel):
 
         if load_from_filepath:
             from tensorflow.python.keras.optimizers import Adam
+            # Reset critic optimiser with given LR
             self.model.compile(optimizer=Adam(lr=self.learning_rate), loss='mse')
             self.action_input = self.model.get_layer("action_input").input
             self.observation_input = self.model.get_layer("observation_input").input
