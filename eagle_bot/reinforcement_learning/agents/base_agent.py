@@ -7,7 +7,6 @@ import numpy as np
 class BaseAgent:
     def train_with_get_output(
             self, state: np.ndarray, reward: float, done: bool,
-            enforced_action: Optional[np.ndarray] = None,
             evaluation: bool = False
     ) -> Union[np.ndarray, None]:
         """
@@ -15,7 +14,6 @@ class BaseAgent:
         :param state:
         :param reward:
         :param done:
-        :param enforced_action: If wanting to execute a known action, pass it here
         :param evaluation:
         :return action if not done, else None:
         """

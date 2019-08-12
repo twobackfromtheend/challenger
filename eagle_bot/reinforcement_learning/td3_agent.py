@@ -59,7 +59,6 @@ class TD3Agent(BaseAgent):
         self.last_action = np.zeros(self.actor_model.outputs)
 
     def train_with_get_output(self, state: np.ndarray, reward: float, done: bool,
-                              enforced_action: Optional[np.ndarray] = None,
                               evaluation: bool = False) -> Union[np.ndarray, None]:
         if random.random() < 0.4:
             self.replay_handler.add(self.last_state, self.last_action, reward, state, done)
@@ -84,13 +83,7 @@ class TD3Agent(BaseAgent):
 
         if not done:
             self.discount_rate = min(self.discount_rate + 0.00001, 0.997)
-            if evaluation:
-                action = self.get_action(state, True)
-            elif enforced_action is None:
-                action = self.get_action(state, False)
-            else:
-                # action = self.exploration.get_action(enforced_action)
-                action = enforced_action
+            action = self.get_action(state, evaluation)
             self.last_state = state
             self.last_action = action
             return action
