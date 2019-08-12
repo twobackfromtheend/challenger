@@ -32,7 +32,7 @@ class DenseCriticModel(BaseCriticModel):
             x = Dense(nodes)(x)
             x = Activation(self.inner_activation)(x)
 
-        x = Dense(self.outputs, activation=self.output_activation)(x)
+        x = Dense(1, activation=self.output_activation)(x)
 
         model = Model(inputs=inputs, outputs=x)
 
