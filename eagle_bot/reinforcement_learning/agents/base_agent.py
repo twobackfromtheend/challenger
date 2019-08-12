@@ -20,7 +20,7 @@ class BaseAgent:
         raise NotImplementedError
 
     @staticmethod
-    def initialise_from_checkpoint(folder: Path, *args):
+    def initialise_from_checkpoint(folder: Path, *args, **kwargs):
         """
         Loads the agent from a saved checkpoint
         :param folder:

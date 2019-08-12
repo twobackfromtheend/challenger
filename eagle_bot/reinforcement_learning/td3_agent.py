@@ -1,6 +1,6 @@
 import random
 from pathlib import Path
-from typing import Union, Optional, Tuple
+from typing import Union, Tuple
 
 import numpy as np
 

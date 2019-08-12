@@ -7,12 +7,13 @@ from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 from rlbot.utils.structures.rigid_body_struct import RigidBodyTick
 
-from eagle_bot.reinforcement_learning.agent import DDPGAgent
 from eagle_bot.reinforcement_learning.agents.base_agent import BaseAgent
+from eagle_bot.reinforcement_learning.checkpoint_handler import get_new_checkpoint_folder, get_latest_checkpoint
 from eagle_bot.reinforcement_learning.exploration import OrnsteinUhlenbeckAndEpsilonGreedy
-from eagle_bot.reinforcement_learning.model.base_critic_model import BaseCriticModel
 from eagle_bot.reinforcement_learning.model.dense_actor_model import DenseActorModel
-from eagle_bot.reinforcement_learning.model_handler import get_model_savepath, get_latest_model
+from eagle_bot.reinforcement_learning.model.dense_critic_model import DenseCriticModel
+from eagle_bot.reinforcement_learning.replay.baselines_replay_buffer import ReplayBuffer
+from eagle_bot.reinforcement_learning.td3_agent import TD3Agent
 
 if TYPE_CHECKING:
     from rlbot.utils.rendering.rendering_manager import RenderingManager
@@ -36,14 +37,10 @@ class AgentHandler:
         self.current_shot_total_reward = 0
 
     def get_agent(self):
-        # DESIRED_MODEL = "_20190411-113911.h5"
-        DESIRED_MODEL = ""
-        trained_actor_filepath = get_latest_model(self.trained_models_folder, "actor*" + DESIRED_MODEL)
-        trained_critic_filepath = get_latest_model(self.trained_models_folder, "critic*" + DESIRED_MODEL)
+        latest_checkpoint = get_latest_checkpoint(self.trained_models_folder)
 
-        if trained_actor_filepath is not None and trained_critic_filepath is not None and \
-                trained_actor_filepath.is_file() and trained_critic_filepath.is_file():
-            self.current_agent = self.create_agent((trained_actor_filepath, trained_critic_filepath))
+        if latest_checkpoint is not None:
+            self.current_agent = self.create_agent(latest_checkpoint)
         else:
             self.current_agent = self.create_agent()
 
@@ -126,25 +123,31 @@ class AgentHandler:
             return 0, done
         return 0.1, done
 
-    def create_agent(self, trained_model_filepaths: Tuple[Path, Path] = None) -> DDPGAgent:
+    def create_agent(self, latest_checkpoint: Path = None) -> BaseAgent:
         INPUTS = 17
         OUTPUTS = 4  # pitch, yaw, roll, boost
-        if trained_model_filepaths:
-            actor_model = DenseActorModel(INPUTS, OUTPUTS, load_from_filepath=str(trained_model_filepaths[0]))
-            critic_model = BaseCriticModel(INPUTS, OUTPUTS, learning_rate=1e-3,
-                                           load_from_filepath=str(trained_model_filepaths[1]))
-            print(f"Loaded trained actor: {trained_model_filepaths[0].name} and "
-                  f"trained critic: {trained_model_filepaths[1].name}")
+        TD3_kwargs = dict(
+            exploration=OrnsteinUhlenbeckAndEpsilonGreedy(theta=0.15, sigma=0.05, dt=1 / 60, size=OUTPUTS,
+                                                          epsilon_actions=1),
+            actor_learning_rate=1e-3,
+            replay_handler=ReplayBuffer(100000, batch_size=256, warmup=10000),
+        )
+        if latest_checkpoint:
+            agent = TD3Agent.initialise_from_checkpoint(
+                latest_checkpoint, INPUTS, OUTPUTS, critic_model_learning_rate=1e-4,
+                **TD3_kwargs
+            )
+
+            print(f"Loaded from checkpoint: {latest_checkpoint.name}")
         else:
             actor_model = DenseActorModel(inputs=INPUTS, outputs=OUTPUTS, layer_nodes=(256, 256, 256),
                                           inner_activation='relu', output_activation='tanh')
-            critic_model = BaseCriticModel(inputs=INPUTS, outputs=OUTPUTS, learning_rate=1e-3)
-        agent = DDPGAgent(
-            actor_model, critic_model=critic_model,
-            exploration=OrnsteinUhlenbeckAndEpsilonGreedy(theta=0.15, sigma=0.05, dt=1 / 120, size=OUTPUTS,
-                                                          epsilon_actions=1),
-            actor_learning_rate=1e-3
-        )
+            critic_model = DenseCriticModel(inputs=INPUTS, outputs=OUTPUTS, layer_nodes=(256, 256, 256),
+                                            learning_rate=1e-4)
+            agent = TD3Agent(
+                actor_model, critic_model=critic_model,
+                **TD3_kwargs
+            )
         print("Created agent")
         return agent
 
@@ -173,8 +176,7 @@ class AgentHandler:
             self.evaluation = True
             if self.episode % 200 == 1 and self.episode > 500:
                 print(f"Saving models: {self.trained_models_folder}")
-
-                self.current_agent.save_checkpoint(self.trained_models_folder / time.strftime('%Y%m%d-%H%M%S'))
+                self.current_agent.save_checkpoint(get_new_checkpoint_folder(self.trained_models_folder))
         else:
             self.evaluation = False
 
