@@ -6,10 +6,10 @@ if TYPE_CHECKING:
     from tensorflow.python.keras import Sequential
 
 
-class DenseModel(BaseModel):
+class DenseActorModel(BaseModel):
 
     def __init__(self, inputs: int, outputs: int, load_from_filepath: str = None,
-                 layer_nodes: Sequence[int] = (24, 24),
+                 layer_nodes: Sequence[int] = (64, 64),
                  inner_activation='relu', output_activation='linear',
                  regularizer=None,
                  **kwargs):
@@ -18,9 +18,7 @@ class DenseModel(BaseModel):
         self.layer_nodes = layer_nodes
         self.inner_activation = inner_activation
         self.output_activation = output_activation
-        self.regularizer = regularizer if regularizer is not None else tf.keras.regularizers.l2(1e-8)
-        # self.learning_rate = learning_rate
-        # self.loss_fn = self.get_loss_fn(loss_fn)
+        self.regularizer = regularizer if regularizer is not None else tf.keras.regularizers.l2(1e-5)
 
         super().__init__(inputs, outputs, load_from_filepath=load_from_filepath)
 
@@ -39,6 +37,4 @@ class DenseModel(BaseModel):
             )
 
         model.add(keras.layers.Dense(self.outputs, activation=self.output_activation))
-        # optimizer = keras.optimizers.Adam(lr=self.learning_rate)
-        # model.compile(loss=self.loss_fn, optimizer=optimizer, metrics=['mae'])
         return model

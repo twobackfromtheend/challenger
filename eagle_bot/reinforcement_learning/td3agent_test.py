@@ -1,8 +1,10 @@
 import gym
 
-from eagle_bot.reinforcement_learning.agent import DDPGAgent
 from eagle_bot.reinforcement_learning.exploration import OrnsteinUhlenbeckAndEpsilonGreedy
 from eagle_bot.reinforcement_learning.model.base_critic_model import BaseCriticModel
+from eagle_bot.reinforcement_learning.model.dense_critic_model import DenseCriticModel
+from eagle_bot.reinforcement_learning.replay.baselines_replay_buffer import ReplayBuffer
+from eagle_bot.reinforcement_learning.td3_agent import TD3Agent
 
 gym.envs.register(
     id='PendulumTimeSensitive-v0',
@@ -13,13 +15,15 @@ env = gym.make('PendulumTimeSensitive-v0')
 
 from eagle_bot.reinforcement_learning.model.dense_actor_model import DenseActorModel
 
-actor_model = DenseActorModel(inputs=3, outputs=1, layer_nodes=(48, 48), learning_rate=3e-3,
+actor_model = DenseActorModel(inputs=3, outputs=1, layer_nodes=(64, 64),
                               inner_activation='relu', output_activation='tanh')
-critic_model = BaseCriticModel(inputs=3, outputs=1, learning_rate=3e-3)
-agent = DDPGAgent(
+critic_model = DenseCriticModel(inputs=3, outputs=1, layer_nodes=(64, 64), learning_rate=3e-3)
+agent = TD3Agent(
     actor_model, critic_model=critic_model,
     exploration=OrnsteinUhlenbeckAndEpsilonGreedy(theta=0.15, sigma=0.3),
-    actor_learning_rate=3e-3
+    actor_learning_rate=3e-3,
+    replay_handler=ReplayBuffer(100000, batch_size=64, warmup=1000),
+    target_actions_clipping_range=(-1, 1),
 )
 
 # Emulate get_output
@@ -37,7 +41,9 @@ while True:
         action = agent.train_with_get_output(state, reward=reward, done=False, evaluation=evaluation)
         state, reward, done, info = env.step(action)
         total_reward += reward
-        # env.render()
+
+        if episode_count > 130:
+            env.render()
 
     print(f"Episode: {episode_count}: reward: {total_reward}")
     episode_count += 1

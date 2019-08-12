@@ -1,11 +1,11 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 import numpy as np
 
 from eagle_bot.reinforcement_learning.model.base_model import BaseModel
 
 if TYPE_CHECKING:
-    from tensorflow.python.keras.models import Model
+    from tensorflow.python.keras.models import Model, Sequential
     from tensorflow.python.keras.optimizers import Optimizer
 
 
@@ -27,27 +27,8 @@ class BaseCriticModel(BaseModel):
         # After build_model is called and self.model is set.
         self.action_input_index = self.model.input.index(self.action_input)
 
-    def build_model(self) -> 'Model':
-        from tensorflow.python.keras.layers import Dense, Activation
-        from tensorflow.python.keras.models import Model
-        from tensorflow.python.keras.optimizers import Adam
-
-        inputs, x = self._get_input_layers()
-
-        x = Dense(256)(x)
-        x = Activation('relu')(x)
-        x = Dense(256)(x)
-        x = Activation('relu')(x)
-        x = Dense(256)(x)
-        x = Activation('relu')(x)
-
-        x = Dense(1, activation='linear')(x)
-
-        model = Model(inputs=inputs, outputs=x)
-
-        model.compile(optimizer=Adam(lr=self.learning_rate), loss='mse')
-        # print(model.summary())
-        return model
+    def build_model(self) -> Union['Sequential', 'Model']:
+        raise NotImplementedError
 
     def _get_input_layers(self):
         from tensorflow.python.keras.layers import Flatten, Input, Concatenate
@@ -60,6 +41,12 @@ class BaseCriticModel(BaseModel):
         return inputs, x
 
     def create_input(self, states: np.ndarray, actions: np.ndarray):
+        """
+        Creates the appropriate input format for the model.
+        :param states:
+        :param actions:
+        :return:
+        """
         input_ = [states]
         input_.insert(self.action_input_index, actions)
         return input_

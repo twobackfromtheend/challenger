@@ -8,9 +8,10 @@ from rlbot.utils.structures.game_data_struct import GameTickPacket
 from rlbot.utils.structures.rigid_body_struct import RigidBodyTick
 
 from eagle_bot.reinforcement_learning.agent import DDPGAgent
+from eagle_bot.reinforcement_learning.agents.base_agent import BaseAgent
 from eagle_bot.reinforcement_learning.exploration import OrnsteinUhlenbeckAndEpsilonGreedy
 from eagle_bot.reinforcement_learning.model.base_critic_model import BaseCriticModel
-from eagle_bot.reinforcement_learning.model.dense_model import DenseModel
+from eagle_bot.reinforcement_learning.model.dense_actor_model import DenseActorModel
 from eagle_bot.reinforcement_learning.model_handler import get_model_savepath, get_latest_model
 
 if TYPE_CHECKING:
@@ -23,7 +24,7 @@ class AgentHandler:
     def __init__(self, renderer: 'RenderingManager'):
         self.renderer = renderer
 
-        self.current_agent: Optional[DDPGAgent] = None
+        self.current_agent: Optional[BaseAgent] = None
 
         self.training_rewards = []
         self.episode = 0
@@ -129,14 +130,14 @@ class AgentHandler:
         INPUTS = 17
         OUTPUTS = 4  # pitch, yaw, roll, boost
         if trained_model_filepaths:
-            actor_model = DenseModel(INPUTS, OUTPUTS, load_from_filepath=str(trained_model_filepaths[0]))
+            actor_model = DenseActorModel(INPUTS, OUTPUTS, load_from_filepath=str(trained_model_filepaths[0]))
             critic_model = BaseCriticModel(INPUTS, OUTPUTS, learning_rate=1e-3,
                                            load_from_filepath=str(trained_model_filepaths[1]))
             print(f"Loaded trained actor: {trained_model_filepaths[0].name} and "
                   f"trained critic: {trained_model_filepaths[1].name}")
         else:
-            actor_model = DenseModel(inputs=INPUTS, outputs=OUTPUTS, layer_nodes=(256, 256, 256),
-                                     inner_activation='relu', output_activation='tanh')
+            actor_model = DenseActorModel(inputs=INPUTS, outputs=OUTPUTS, layer_nodes=(256, 256, 256),
+                                          inner_activation='relu', output_activation='tanh')
             critic_model = BaseCriticModel(inputs=INPUTS, outputs=OUTPUTS, learning_rate=1e-3)
         agent = DDPGAgent(
             actor_model, critic_model=critic_model,
@@ -172,10 +173,8 @@ class AgentHandler:
             self.evaluation = True
             if self.episode % 200 == 1 and self.episode > 500:
                 print(f"Saving models: {self.trained_models_folder}")
-                actor_savepath = get_model_savepath(self.trained_models_folder, f"actor_{self.episode}")
-                critic_savepath = get_model_savepath(self.trained_models_folder, f"critic_{self.episode}")
-                self.current_agent.actor_model.save_model(actor_savepath)
-                self.current_agent.critic_model.save_model(critic_savepath)
+
+                self.current_agent.save_checkpoint(self.trained_models_folder / time.strftime('%Y%m%d-%H%M%S'))
         else:
             self.evaluation = False
 
