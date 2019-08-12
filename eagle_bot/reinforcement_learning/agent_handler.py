@@ -169,8 +169,8 @@ class AgentHandler:
         INPUTS = 29
         OUTPUTS = 4  # pitch, yaw, roll, boost
         TD3_kwargs = dict(
-            exploration=OrnsteinUhlenbeckAndEpsilonGreedy(theta=0.15, sigma=0.1, dt=1 / 60, size=OUTPUTS,
-                                                          epsilon_actions=1),
+            exploration=OrnsteinUhlenbeckAndEpsilonGreedy(theta=0.15, sigma=0.3, dt=1 / 60, size=OUTPUTS,
+                                                          epsilon_actions=1, epsilon=0.4),
             actor_learning_rate=2.5e-4,
             replay_handler=ReplayBuffer(100000, batch_size=256, warmup=10000),
         )
@@ -228,8 +228,10 @@ class AgentHandler:
         if self.episode % 50 == 1:
             self.evaluation = True
             if self.episode % 1000 == 1 and self.episode > 500:
-                print(f"Saving models: {self.trained_models_folder}")
-                self.current_agent.save_checkpoint(get_new_checkpoint_folder(self.trained_models_folder))
+                new_checkpoint_folder = get_new_checkpoint_folder(self.trained_models_folder)
+                new_checkpoint_folder.mkdir(exist_ok=True)
+                print(f"Saving models: {new_checkpoint_folder}")
+                self.current_agent.save_checkpoint(new_checkpoint_folder)
         else:
             self.evaluation = False
 

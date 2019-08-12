@@ -8,7 +8,8 @@ class OrnsteinUhlenbeckAndEpsilonGreedy:
     See  https://github.com/keras-rl/keras-rl/blob/master/rl/random.py
     """
 
-    def __init__(self, theta, mu: float = 0, sigma: float = 1, dt=1e-2, size: int = 1, epsilon_actions: int = 0):
+    def __init__(self, theta, mu: float = 0, sigma: float = 1, dt=1e-2, size: int = 1,
+                 epsilon_actions: int = 0, epsilon: float = 0.5):
         self.mu = mu
         self.sigma = sigma
         self.size = size
@@ -17,13 +18,14 @@ class OrnsteinUhlenbeckAndEpsilonGreedy:
         self.previous_noise = None
 
         self.epsilon_actions = epsilon_actions
+        self.epsilon = epsilon
         self.reset_states()
 
     def get_action(self, action: np.ndarray):
         action = action + self.sample()
 
         for i in range(self.epsilon_actions):
-            if random.random() < 0.1:
+            if random.random() < self.epsilon:
                 action[-i - 1] = random.getrandbits(1) - 0.5
 
         return action
@@ -45,4 +47,3 @@ if __name__ == '__main__':
     for i in range(100):
         action = ou.get_action(np.zeros(size))
         print(action)
-

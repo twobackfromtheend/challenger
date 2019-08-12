@@ -43,7 +43,7 @@ class TD3Agent(BaseAgent):
         self.last_state: np.ndarray = np.zeros(actor_model.inputs)
         self.last_action: np.ndarray = np.zeros(actor_model.outputs)
 
-        self.discount_rate = 0.97
+        self.discount_rate = 0.99  # https://www.wolframalpha.com/input/?i=ln(2)+%2F+(1+-+0.999)+%2F+60
         from tensorflow.python.keras.optimizers import Adam
         self.actor_train_fn = self.critic_model.get_actor_train_fn(self.actor_model, Adam(actor_learning_rate))
 
@@ -60,17 +60,20 @@ class TD3Agent(BaseAgent):
 
     def train_with_get_output(self, state: np.ndarray, reward: float, done: bool,
                               evaluation: bool = False) -> Union[np.ndarray, None]:
-        if random.random() < 0.4:
+        if random.random() < 0.4 or done:
             self.replay_handler.add(self.last_state, self.last_action, reward, state, done)
 
         self.i += 1
-        if self.i == 3:
+        if self.i == 10 or done:
+
             self.i = 0
 
             self.j += 1
             if self.j == 2:
                 self.j = 0
-                self.update_target_models(0.01)
+                self.update_target_models(0.005)
+                # self.discount_rate = min(self.discount_rate + 0.00001, 0.997)
+
                 try:
                     critic_loss = self.experience_replay(train_actor=True)
                 except InsufficientExperiencesError:
@@ -82,7 +85,6 @@ class TD3Agent(BaseAgent):
                     pass
 
         if not done:
-            self.discount_rate = min(self.discount_rate + 0.00001, 0.997)
             action = self.get_action(state, evaluation)
             self.last_state = state
             self.last_action = action
@@ -196,10 +198,9 @@ class TD3Agent(BaseAgent):
         )
 
     def save_checkpoint(self, folder: Path):
-        self.actor_model.save_model("actor_model.h5")
-        self.critic_model.save_model("critic_model.h5")
-        self.critic_model_2.save_model("critic_model_2.h5")
-
-        self.target_actor_model.save_model("target_actor_model.h5")
-        self.target_critic_model.save_model("target_critic_model.h5")
-        self.target_critic_model_2.save_model("target_critic_model_2.h5")
+        self.actor_model.save_model(str(folder / "actor_model.h5"))
+        self.critic_model.save_model(str(folder / "critic_model.h5"))
+        self.critic_model_2.save_model(str(folder / "critic_model_2.h5"))
+        self.target_actor_model.save_model(str(folder / "target_actor_model.h5"))
+        self.target_critic_model.save_model(str(folder / "target_critic_model.h5"))
+        self.target_critic_model_2.save_model(str(folder / "target_critic_model_2.h5"))
