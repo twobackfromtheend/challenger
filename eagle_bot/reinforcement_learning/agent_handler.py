@@ -169,14 +169,14 @@ class AgentHandler:
         INPUTS = 29
         OUTPUTS = 4  # pitch, yaw, roll, boost
         TD3_kwargs = dict(
-            exploration=OrnsteinUhlenbeckAndEpsilonGreedy(theta=0.15, sigma=0.3, dt=1 / 60, size=OUTPUTS,
-                                                          epsilon_actions=1, epsilon=0.4),
+            exploration=OrnsteinUhlenbeckAndEpsilonGreedy(theta=0.15, sigma=0.1, dt=1 / 60, size=OUTPUTS,
+                                                          epsilon_actions=1, epsilon=0.2),
             actor_learning_rate=2.5e-4,
             replay_handler=ReplayBuffer(100000, batch_size=256, warmup=10000),
         )
         if latest_checkpoint:
             agent = TD3Agent.initialise_from_checkpoint(
-                latest_checkpoint, INPUTS, OUTPUTS, critic_model_learning_rate=1e-4,
+                latest_checkpoint, INPUTS, OUTPUTS, critic_model_learning_rate=2.5e-4,
                 **TD3_kwargs
             )
 

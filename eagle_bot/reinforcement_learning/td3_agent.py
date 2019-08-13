@@ -43,7 +43,7 @@ class TD3Agent(BaseAgent):
         self.last_state: np.ndarray = np.zeros(actor_model.inputs)
         self.last_action: np.ndarray = np.zeros(actor_model.outputs)
 
-        self.discount_rate = 0.99  # https://www.wolframalpha.com/input/?i=ln(2)+%2F+(1+-+0.999)+%2F+60
+        self.discount_rate = 0.995  # https://www.wolframalpha.com/input/?i=ln(2)+%2F+(1+-+0.999)+%2F+60
         from tensorflow.python.keras.optimizers import Adam
         self.actor_train_fn = self.critic_model.get_actor_train_fn(self.actor_model, Adam(actor_learning_rate))
 
@@ -72,7 +72,7 @@ class TD3Agent(BaseAgent):
             if self.j == 2:
                 self.j = 0
                 self.update_target_models(0.005)
-                # self.discount_rate = min(self.discount_rate + 0.00001, 0.997)
+                self.discount_rate = min(self.discount_rate + 0.00001, 0.997)
 
                 try:
                     critic_loss = self.experience_replay(train_actor=True)
