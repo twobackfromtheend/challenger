@@ -8,6 +8,9 @@ except ImportError:
 
 DEFAULT_LOGGER = 'rlbot'
 
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 if __name__ == '__main__':
 
     try:

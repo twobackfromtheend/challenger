@@ -63,7 +63,7 @@ class EagleBot(BaseAgent):
 
                 # Game state control
                 current_time = time.time()
-                if done or current_time - self.episode_start_time > 60:
+                if done:
                     self.reset_shot()
 
         else:
@@ -104,104 +104,3 @@ class EagleBot(BaseAgent):
         self.set_game_state(game_state)
         self.has_started_episode = False
         self.has_reset = True
-
-    # def draw(self, game_state: GameState, draw_controller_state: bool = False):
-    #     renderer = self.renderer
-    #     renderer.begin_rendering()
-    #
-    #     # Round number
-    #     x_scale = 3
-    #     y_scale = 3
-    #     y_offset = 50
-    #     current_round_str = str(self.current_round) if self.current_round is not None else 'None'
-    #     renderer.draw_rect_2d(10, 95 + y_offset, 500, 50, True, renderer.create_color(80, 0, 0, 0))
-    #     renderer.draw_string_2d(15, 100 + y_offset, x_scale, y_scale, f"ROUND: {current_round_str}",
-    #                             renderer.white())
-    #
-    #     # if game_state == GameState.PAUSED:
-    #     #     renderer.draw_rect_2d(10, 395, 500, 135, True, renderer.create_color(80, 0, 0, 0))
-    #     #     renderer.draw_string_2d(15, 400, 8, 8, f"PAUSED", renderer.red())
-    #     game_state_draw_data = {
-    #         GameState.PAUSED: {
-    #             'color': renderer.red(),
-    #             'scale': 8,
-    #             'width': 430,
-    #             'height': 135,
-    #         },
-    #         GameState.ROUND_WAITING: {
-    #             'color': renderer.orange(),
-    #             'scale': 4,
-    #             'width': 460,
-    #             'height': 80,
-    #         },
-    #         GameState.ROUND_ONGOING: {
-    #             'color': renderer.lime(),
-    #             'scale': 4,
-    #             'width': 470,
-    #             'height': 80,
-    #         },
-    #         GameState.ROUND_FINISHED: {
-    #             'color': renderer.grey(),
-    #             'scale': 4,
-    #             'width': 470,
-    #             'height': 80,
-    #         },
-    #         GameState.REPLAY: {
-    #             'color': renderer.white() if int(time.time() * 3) % 2 == 0 else renderer.grey(),
-    #             'scale': 4,
-    #             'width': 210,
-    #             'height': 80,
-    #         },
-    #     }
-    #     draw_data = game_state_draw_data[game_state]
-    #     renderer.draw_rect_2d(10, 395, draw_data['width'], draw_data['height'], True,
-    #                           renderer.create_color(80, 0, 0, 0))
-    #     renderer.draw_string_2d(15, 405, draw_data['scale'], draw_data['scale'], f"{game_state.name}",
-    #                             draw_data['color'])
-    #
-    #     if draw_controller_state:
-    #         x_scale = 1
-    #         y_scale = 1
-    #         renderer = self.renderer
-    #         renderer.begin_rendering()
-    #         x = 500
-    #         y = 100
-    #         for control in ["steer", "throttle", "pitch", "yaw", "roll"]:
-    #             renderer.draw_string_2d(x, y, x_scale, y_scale, f"{control}: {getattr(self.controller_state, control)}",
-    #                                     renderer.white())
-    #             y += 10
-    #     renderer.end_rendering()
-    #
-    # def set_controller_state_from_ds4(self):
-    #     self.controller_state.boost = self.ds4.get_button(DS4Button.O)
-    #     self.controller_state.jump = self.ds4.get_button(DS4Button.X)
-    #     l_horizontal = self.apply_deadzone_center(self.ds4.get_button(DS4Analog.L_HORIZONTAL))
-    #
-    #     r2_deadzoned = self.apply_deadzone_small(self.ds4.get_button(DS4Analog.R2))
-    #     l1_deadzoned = self.apply_deadzone_small(self.ds4.get_button(DS4Analog.L2))
-    #     self.controller_state.throttle = (r2_deadzoned - l1_deadzoned) / 2
-    #     # self.logger.info(self.ds4.get_button(DS4Analog.R2), self.ds4.get_button(DS4Analog.L2))
-    #     self.controller_state.steer = l_horizontal
-    #     self.controller_state.pitch = self.apply_deadzone_center(self.ds4.get_button(DS4Analog.L_VERTICAL))
-    #     if self.ds4.get_button(DS4Button.L1):
-    #         self.controller_state.roll = l_horizontal
-    #         self.controller_state.yaw = 0
-    #     else:
-    #         self.controller_state.yaw = l_horizontal
-    #         self.controller_state.roll = 0
-    #     # print(self.ds4.get_button(DS4Button.L1), self.controller_state.roll)
-    #     # print(self.controller_state.__dict__)
-    #     for control in ['steer', 'throttle', 'pitch', 'yaw', 'roll']:
-    #         setattr(self.controller_state, control, max(min(getattr(self.controller_state, control), 1), -1))
-    #
-    # @staticmethod
-    # def apply_deadzone_center(value: float):
-    #     DEADZONE = 0.1
-    #     adjusted_magnitude = max(abs(value) - DEADZONE, 0)
-    #     return math.copysign(adjusted_magnitude, value) / (1 - DEADZONE)
-    #
-    # @staticmethod
-    # def apply_deadzone_small(value: float):
-    #     DEADZONE = 0.05
-    #     value = max(value + 1 - DEADZONE, 0) * 2. / (2 - DEADZONE) - 1
-    #     return min(max(value * 1 / 0.88, -1), 1)  # Adjust for controller range (-1 to 0.88)

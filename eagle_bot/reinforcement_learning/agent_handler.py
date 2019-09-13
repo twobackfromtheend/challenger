@@ -9,6 +9,7 @@ from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 from rlbot.utils.structures.rigid_body_struct import RigidBodyTick
 
+import training_plotter
 from eagle_bot.reinforcement_learning.agents.base_agent import BaseAgent
 from eagle_bot.reinforcement_learning.checkpoint_handler import get_new_checkpoint_folder, get_latest_checkpoint
 from eagle_bot.reinforcement_learning.exploration import OrnsteinUhlenbeckAndEpsilonGreedy
@@ -42,6 +43,8 @@ class AgentHandler:
         self.current_shot_total_reward = 0
         self.current_shot_duration = 0
         self.previous_boosts = deque([0, 0, 0], maxlen=3)
+
+        training_plotter.start_child_process()
 
     def get_agent(self):
         latest_checkpoint = get_latest_checkpoint(self.trained_models_folder)
@@ -113,7 +116,6 @@ class AgentHandler:
             self.previous_boosts[1],
             self.previous_boosts[2],
 
-
             car_state.location.x / 2000,
             car_state.location.y / 2000,
             car_state.location.z / 2000,
@@ -169,14 +171,14 @@ class AgentHandler:
         INPUTS = 29
         OUTPUTS = 4  # pitch, yaw, roll, boost
         TD3_kwargs = dict(
-            exploration=OrnsteinUhlenbeckAndEpsilonGreedy(theta=0.15, sigma=0.1, dt=1 / 60, size=OUTPUTS,
-                                                          epsilon_actions=1, epsilon=0.2),
-            actor_learning_rate=2.5e-4,
-            replay_handler=ReplayBuffer(100000, batch_size=256, warmup=10000),
+            exploration=OrnsteinUhlenbeckAndEpsilonGreedy(theta=0.15, sigma=0.2, dt=1 / 60, size=OUTPUTS,
+                                                          epsilon_actions=1, epsilon=0.1),
+            actor_learning_rate=0.5e-4,
+            replay_handler=ReplayBuffer(300000, batch_size=128, warmup=80000),
         )
         if latest_checkpoint:
             agent = TD3Agent.initialise_from_checkpoint(
-                latest_checkpoint, INPUTS, OUTPUTS, critic_model_learning_rate=2.5e-4,
+                latest_checkpoint, INPUTS, OUTPUTS, critic_model_learning_rate=0.5e-4,
                 **TD3_kwargs
             )
 
@@ -204,6 +206,9 @@ class AgentHandler:
         return controller_state
 
     def end_episode_cleanup(self):
+        training_plotter.add_item(self.episode, self.current_shot_duration, self.current_shot_total_reward,
+                                  self.evaluation)
+
         if self.evaluation:
             self.evaluation_rewards.append(self.current_shot_total_reward)
             self.evaluations += 1
@@ -238,36 +243,31 @@ class AgentHandler:
     def draw(self):
         renderer = self.renderer
         renderer.begin_rendering('agent_handler')
-        x_scale = y_scale = 3
-        rect_width = 450
+        x_scale = y_scale = 2
+
+        rect_width = 320
         x_offset = 15
         x_offset_ = x_offset + 5
-        renderer.draw_rect_2d(x_offset, 95, rect_width, 50, True, renderer.create_color(80, 0, 0, 0))
-        renderer.draw_string_2d(x_offset_, 100, x_scale, y_scale, f"EPISODE: {self.episode}",
+        renderer.draw_rect_2d(x_offset, 25, rect_width, 35, True, renderer.create_color(80, 0, 0, 0))
+        renderer.draw_string_2d(x_offset_, 30, x_scale, y_scale, f"EPISODE: {self.episode}",
                                 renderer.white())
 
-        renderer.draw_rect_2d(x_offset, 145, rect_width, 50, True, renderer.create_color(80, 0, 0, 0))
-        renderer.draw_string_2d(x_offset_, 150, x_scale, y_scale,
+        renderer.draw_rect_2d(x_offset, 60, rect_width, 35, True, renderer.create_color(80, 0, 0, 0))
+        renderer.draw_string_2d(x_offset_, 65, x_scale, y_scale,
                                 f"EP REWARD: {self.current_shot_total_reward:.1f}",
                                 renderer.white())
 
-        renderer.draw_rect_2d(x_offset, 195, rect_width, 50, True, renderer.create_color(80, 0, 0, 0))
-        renderer.draw_string_2d(x_offset_, 200, x_scale, y_scale,
+        renderer.draw_rect_2d(x_offset, 95, rect_width, 35, True, renderer.create_color(80, 0, 0, 0))
+        renderer.draw_string_2d(x_offset_, 100, x_scale, y_scale,
                                 f"EP TIME: {self.current_shot_duration:.2f}",
                                 renderer.white())
 
-        renderer.draw_rect_2d(x_offset, 245, rect_width, 50, True, renderer.create_color(80, 0, 0, 0))
-        renderer.draw_string_2d(x_offset_, 250, x_scale, y_scale,
-                                f"AVG: R: {sum(self.training_rewards) / len(self.training_rewards):.1f}, "
-                                f"D: {sum(self.training_durations) / len(self.training_durations):.1f}",
-                                renderer.white())
-
-        renderer.draw_rect_2d(x_offset, 295, rect_width, 50, True, renderer.create_color(80, 0, 0, 0))
-        renderer.draw_string_2d(x_offset_, 300, x_scale, y_scale,
+        renderer.draw_rect_2d(x_offset, 130, rect_width, 35, True, renderer.create_color(80, 0, 0, 0))
+        renderer.draw_string_2d(x_offset_, 135, x_scale, y_scale,
                                 f"BEST: EP: {self.best_episode[0]},",
                                 renderer.white())
-        renderer.draw_rect_2d(x_offset, 345, rect_width, 50, True, renderer.create_color(80, 0, 0, 0))
-        renderer.draw_string_2d(x_offset_, 350, x_scale, y_scale,
+        renderer.draw_rect_2d(x_offset, 165, rect_width, 35, True, renderer.create_color(80, 0, 0, 0))
+        renderer.draw_string_2d(x_offset_, 170, x_scale, y_scale,
                                 f"     R: {self.best_episode[1]:.1f}, D: {self.best_episode[2]:.1f}",
                                 renderer.white())
 
