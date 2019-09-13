@@ -81,9 +81,9 @@ class EagleBot(BaseAgent):
     def reset_shot(self):
         zero_vector = Vector3(x=0, y=0, z=0)
 
-        ball_start_location = Vector3(x=0, y=0, z=800)
+        ball_start_location = Vector3(x=0, y=0, z=1944)
 
-        car_start_location = Vector3(x=0, y=0, z=600)
+        car_start_location = Vector3(x=0, y=0, z=1750)
         car_start_rotation = Rotator(
             # pitch=math.pi / 2,
             pitch=math.pi / 2 + random.random() * 0.1 * math.pi,
