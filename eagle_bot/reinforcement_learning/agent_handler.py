@@ -153,7 +153,7 @@ class AgentHandler:
         ball_location = rb_tick.ball.state.location
         car_location = rb_tick.players[0].state.location
 
-        if ball_location.z < 500:
+        if ball_location.z < 1650:
             done = True
         elif abs(ball_location.x) > 2000 or abs(ball_location.y) > 2000:
             done = True
@@ -171,10 +171,10 @@ class AgentHandler:
         INPUTS = 29
         OUTPUTS = 4  # pitch, yaw, roll, boost
         TD3_kwargs = dict(
-            exploration=OrnsteinUhlenbeckAndEpsilonGreedy(theta=0.15, sigma=0.2, dt=1 / 60, size=OUTPUTS,
-                                                          epsilon_actions=1, epsilon=0.2),
+            exploration=OrnsteinUhlenbeckAndEpsilonGreedy(theta=0.15, sigma=0.5, dt=1 / 60, size=OUTPUTS,
+                                                          epsilon_actions=1, epsilon=0.4),
             actor_learning_rate=2.5e-4,
-            replay_handler=ReplayBuffer(100000, batch_size=128, warmup=10000),
+            replay_handler=ReplayBuffer(100000, batch_size=256, warmup=30000),
         )
         if latest_checkpoint:
             agent = TD3Agent.initialise_from_checkpoint(
